@@ -203,15 +203,15 @@
             </a>
             <a class="sidebar-link manager-only" data-page="users" onclick="navigateTo('users')">
                 <i class="fas fa-user-shield"></i>
-                <span>Users</span>
+                <span data-i18n="users">Users</span>
             </a>
         </nav>
 
         <div class="sidebar-footer">
-            <button class="sidebar-footer-btn" onclick="toggleTheme()" title="Toggle Theme">
+            <button class="sidebar-footer-btn" onclick="toggleTheme()" title="Toggle Theme" data-i18n-title="toggleTheme">
                 <i class="fas fa-moon" id="themeIcon"></i>
             </button>
-            <button class="sidebar-footer-btn" onclick="toggleLanguage()" title="Toggle Language">
+            <button class="sidebar-footer-btn" onclick="toggleLanguage()" title="Toggle Language" data-i18n-title="toggleLanguage">
                 <span id="langLabel">EN</span>
             </button>
         </div>
@@ -231,7 +231,7 @@
                     <span class="user-name" id="userNameLabel"></span>
                     <span class="user-role" id="userRoleLabel"></span>
                 </div>
-                <button class="topbar-alert-btn" onclick="openAlertsPanel()" title="Alerts">
+                <button class="topbar-alert-btn" onclick="openAlertsPanel()" title="Alerts" data-i18n-title="alerts">
                     <i class="fas fa-bell"></i>
                     <span class="topbar-alert-count" id="alertBadge"><span id="alertCount">0</span></span>
                 </button>
@@ -239,7 +239,7 @@
                     <i class="fas fa-plus-circle"></i>
                     <span id="addBtnText" data-i18n="add">Add</span>
                 </button>
-                <button class="topbar-logout-btn" id="logoutBtn" onclick="logoutUser()" style="display:none;" title="Sign out">
+                <button class="topbar-logout-btn" id="logoutBtn" onclick="logoutUser()" style="display:none;" title="Sign out" data-i18n-title="signOut">
                     <i class="fas fa-sign-out-alt"></i>
                 </button>
             </div>
@@ -354,12 +354,12 @@
                 <div class="layout-toolbar-label"><i class="fas fa-th"></i> <span data-i18n="layout">Layout</span></div>
                 <div class="layout-toolbar-controls">
                     <label class="layout-ctl"><span data-i18n="rows">Rows</span>
-                        <input type="number" id="lockerRowsInput" min="1" max="20" value="0" placeholder="auto" oninput="setLockerLayout()">
+                        <input type="number" id="lockerRowsInput" min="1" max="20" value="0" placeholder="auto" data-i18n-placeholder="autoPlaceholder" oninput="setLockerLayout()">
                     </label>
                     <label class="layout-ctl"><span data-i18n="columns">Columns</span>
-                        <input type="number" id="lockerColsInput" min="1" max="12" value="0" placeholder="auto" oninput="setLockerLayout()">
+                        <input type="number" id="lockerColsInput" min="1" max="12" value="0" placeholder="auto" data-i18n-placeholder="autoPlaceholder" oninput="setLockerLayout()">
                     </label>
-                    <button class="btn-icon layout-reset" onclick="resetLockerLayout()" title="Auto"><i class="fas fa-magic"></i></button>
+                    <button class="btn-icon layout-reset" onclick="resetLockerLayout()" title="Auto" data-i18n-title="autoLayout"><i class="fas fa-magic"></i></button>
                 </div>
             </div>
             <div class="locker-grid-container">
@@ -496,7 +496,7 @@
                             <option value="out" data-i18n="outOfDeptCustody">Out of Department Custody</option>
                         </select>
                     </div>
-                    <button class="btn-print" onclick="printEquipment()" title="Print">
+                    <button class="btn-print" onclick="printEquipment()" title="Print" data-i18n-title="printBtn">
                         <i class="fas fa-print"></i>
                         <span data-i18n="print">Print</span>
                     </button>
@@ -546,8 +546,8 @@
                     <select id="historyEmpSelect">
                         <option value="" data-i18n="responsibleEmployee">Responsible Employee</option>
                     </select>
-                    <input type="date" id="historyStartDate" title="Start Date">
-                    <input type="date" id="historyEndDate" title="End Date">
+                    <input type="date" id="historyStartDate" title="Start Date" data-i18n-title="startDate">
+                    <input type="date" id="historyEndDate" title="End Date" data-i18n-title="endDate">
                     <select id="historyStatus">
                         <option value="active" data-i18n="active">Active</option>
                         <option value="completed" data-i18n="completed">Completed</option>
@@ -570,11 +570,11 @@
             <!-- Items Tab -->
             <div class="dept-dtab-content" id="deptItemsTab">
                 <div class="items-toolbar-bar">
-                    <button class="btn-print" onclick="printDeptItems()" title="Print">
+                    <button class="btn-print" onclick="printDeptItems()" title="Print" data-i18n-title="printBtn">
                         <i class="fas fa-print"></i>
                         <span data-i18n="print">Print</span>
                     </button>
-                    <button class="btn-print" onclick="printIncoming()" title="Print incoming">
+                    <button class="btn-print" onclick="printIncoming()" title="Print incoming" data-i18n-title="printIncomingTitle">
                         <i class="fas fa-print"></i>
                         <span data-i18n="printIncoming">Print Incoming</span>
                     </button>
@@ -620,11 +620,11 @@
                     <span data-i18n="custodyHistory">Custody History</span>
                     <span class="emp-tab-badge" id="empHistoryBadge" style="display:none">0</span>
                 </button>
-                <button class="btn-print emp-tab-print" onclick="printEmpCurrent()" title="Print current custody">
+                <button class="btn-print emp-tab-print" onclick="printEmpCurrent()" title="Print current custody" data-i18n-title="printCurrentTitle">
                     <i class="fas fa-print"></i>
                     <span data-i18n="printCurrent">Print Current</span>
                 </button>
-                <button class="btn-print emp-tab-print" onclick="printEmpHistory()" title="Print custody history">
+                <button class="btn-print emp-tab-print" onclick="printEmpHistory()" title="Print custody history" data-i18n-title="printHistoryTitle">
                     <i class="fas fa-print"></i>
                     <span data-i18n="printHistory">Print History</span>
                 </button>
@@ -690,21 +690,21 @@
         <div class="page" id="page-users">
             <div class="users-page">
                 <div class="users-toolbar">
-                    <h2>Users</h2>
+                    <h2 data-i18n="users">Users</h2>
                     <button class="users-add-btn" onclick="openUserModal()">
                         <i class="fas fa-plus"></i>
-                        <span>Add User</span>
+                        <span data-i18n="addUser">Add User</span>
                     </button>
                 </div>
                 <div class="users-table-wrap">
                     <table class="users-table">
                         <thead>
                             <tr>
-                                <th>Username</th>
-                                <th>Role</th>
-                                <th>Status</th>
-                                <th>Linked Employee</th>
-                                <th>Department</th>
+                                <th data-i18n="username">Username</th>
+                                <th data-i18n="role">Role</th>
+                                <th data-i18n="status">Status</th>
+                                <th data-i18n="linkedEmployee">Linked Employee</th>
+                                <th data-i18n="department">Department</th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -734,7 +734,7 @@
                         <i class="fas fa-th"></i>
                     </button>
                 </div>
-                <button class="btn-print-icon" onclick="printLockerItems()" title="Print">
+                <button class="btn-print-icon" onclick="printLockerItems()" title="Print" data-i18n-title="printBtn">
                     <i class="fas fa-print"></i>
                 </button>
                 <button class="modal-close" onclick="closeLockerModal()">
@@ -1274,7 +1274,7 @@
                 </div>
             </div>
             <div class="modal-header-actions">
-                <button class="btn-print-icon" onclick="printAreaItems()" title="Print">
+                <button class="btn-print-icon" onclick="printAreaItems()" title="Print" data-i18n-title="printBtn">
                     <i class="fas fa-print"></i>
                 </button>
                 <button class="modal-close" onclick="closeModal('areaItemsModal')">
@@ -1288,10 +1288,10 @@
         <div class="modal-footer area-add-bar">
             <div class="area-add-inputs">
                 <input type="text" id="newAreaItemName" data-i18n-placeholder="itemNamePlaceholder" placeholder="Item name...">
-                <input type="number" id="newAreaItemQty" placeholder="Qty" min="0" value="1" title="Quantity">
-                <input type="number" id="newAreaItemMin" placeholder="Min" min="0" value="0" title="Min stock">
+                <input type="number" id="newAreaItemQty" placeholder="Qty" data-i18n-placeholder="qty" min="0" value="1" title="Quantity" data-i18n-title="quantity">
+                <input type="number" id="newAreaItemMin" placeholder="Min" data-i18n-placeholder="min" min="0" value="0" title="Min stock" data-i18n-title="minStockTitle">
                 <input type="text" id="newAreaItemDesc" data-i18n-placeholder="descriptionPlaceholder" placeholder="Description (optional)">
-                <label class="area-image-upload" title="Upload image">
+                <label class="area-image-upload" title="Upload image" data-i18n-title="uploadImage">
                     <i class="fas fa-camera"></i>
                     <input type="file" id="newAreaItemFile" accept="image/*">
                 </label>
@@ -1586,39 +1586,39 @@
         <div class="modal-body">
             <input type="hidden" id="userModalId" value="">
             <div class="user-form-field">
-                <label>Username</label>
-                <input type="text" id="userModalUsername" placeholder="e.g. alice" autocomplete="off">
+                <label data-i18n="username">Username</label>
+                <input type="text" id="userModalUsername" placeholder="e.g. alice" data-i18n-placeholder="usernameExample" autocomplete="off">
             </div>
             <div class="user-form-field" id="userModalPasswordWrap">
-                <label>Password <span style="color:rgba(255,255,255,0.4); font-weight:400;">(min 6 characters)</span></label>
+                <label><span data-i18n="password">Password</span> <span style="color:rgba(255,255,255,0.4); font-weight:400;" data-i18n="passwordHint">(min 6 characters)</span></label>
                 <input type="password" id="userModalPassword" placeholder="" autocomplete="new-password">
             </div>
             <div class="user-form-field">
-                <label>Role</label>
+                <label data-i18n="role">Role</label>
                 <select id="userModalRole" onchange="onUserRoleChange()">
-                    <option value="employee">Employee — CRUD within own department</option>
-                    <option value="admin">Admin — view everywhere, add in Departments</option>
-                    <option value="manager">Manager — full access</option>
+                    <option value="employee" data-i18n="roleEmployee">Employee — CRUD within own department</option>
+                    <option value="admin" data-i18n="roleAdmin">Admin — view everywhere, add in Departments</option>
+                    <option value="manager" data-i18n="roleManager">Manager — full access</option>
                 </select>
             </div>
             <div class="user-form-field">
-                <label>Linked Employee <span style="color:rgba(255,255,255,0.4); font-weight:400;">(optional)</span></label>
-                <select id="userModalEmployee"><option value="">— none —</option></select>
+                <label><span data-i18n="linkedEmployee">Linked Employee</span> <span style="color:rgba(255,255,255,0.4); font-weight:400;" data-i18n="linkedEmpHint">(optional)</span></label>
+                <select id="userModalEmployee"><option value="" data-i18n="none">— none —</option></select>
             </div>
             <div class="user-form-field" id="userModalDeptWrap">
-                <label>Department Scope <span style="color:rgba(255,255,255,0.4); font-weight:400;">(used if no employee linked)</span></label>
-                <select id="userModalDepartment"><option value="">— none —</option></select>
+                <label><span data-i18n="departmentScope">Department Scope</span> <span style="color:rgba(255,255,255,0.4); font-weight:400;" data-i18n="deptScopeHint">(used if no employee linked)</span></label>
+                <select id="userModalDepartment"><option value="" data-i18n="none">— none —</option></select>
             </div>
             <div class="user-form-field">
                 <label class="user-form-checkbox">
                     <input type="checkbox" id="userModalActive" checked>
-                    <span>Active</span>
+                    <span data-i18n="active">Active</span>
                 </label>
             </div>
         </div>
         <div class="modal-actions">
-            <button class="btn-secondary" onclick="closeModal('userModal')">Cancel</button>
-            <button class="btn-primary" onclick="saveUser()">Save</button>
+            <button class="btn-secondary" onclick="closeModal('userModal')" data-i18n="cancel">Cancel</button>
+            <button class="btn-primary" onclick="saveUser()" data-i18n="save">Save</button>
         </div>
     </div>
 </div>
@@ -1627,7 +1627,7 @@
 <div class="modal-overlay" id="resetPwModal">
     <div class="modal" style="max-width: 420px;">
         <div class="modal-header">
-            <h2>Reset Password</h2>
+            <h2 data-i18n="resetPassword">Reset Password</h2>
             <button class="modal-close" onclick="closeModal('resetPwModal')">
                 <i class="fas fa-times"></i>
             </button>
@@ -1635,16 +1635,16 @@
         <div class="modal-body">
             <input type="hidden" id="resetPwUserId" value="">
             <p style="margin-bottom: 14px; color: rgba(255,255,255,0.65); font-size: 13.5px;">
-                Setting a new password for <strong id="resetPwUsername"></strong>.
+                <span data-i18n="settingNewPassword">Setting a new password for</span> <strong id="resetPwUsername"></strong>.
             </p>
             <div class="user-form-field">
-                <label>New Password <span style="color:rgba(255,255,255,0.4); font-weight:400;">(min 6 characters)</span></label>
+                <label><span data-i18n="newPassword">New Password</span> <span style="color:rgba(255,255,255,0.4); font-weight:400;" data-i18n="passwordHint">(min 6 characters)</span></label>
                 <input type="password" id="resetPwValue" autocomplete="new-password">
             </div>
         </div>
         <div class="modal-actions">
-            <button class="btn-secondary" onclick="closeModal('resetPwModal')">Cancel</button>
-            <button class="btn-primary" onclick="confirmResetPassword()">Reset</button>
+            <button class="btn-secondary" onclick="closeModal('resetPwModal')" data-i18n="cancel">Cancel</button>
+            <button class="btn-primary" onclick="confirmResetPassword()" data-i18n="reset">Reset</button>
         </div>
     </div>
 </div>

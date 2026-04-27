@@ -105,6 +105,38 @@ const i18n = {
         targetArea:'Target Area', noArea:'No area (zone-level)',
         itemTransferred:'Item transferred',
         currentLocation:'Current location',
+        users:'Users', addUser:'Add User', editUser:'Edit User',
+        username:'Username', password:'Password', newPassword:'New Password',
+        passwordHint:'(min 6 characters)', usernameExample:'e.g. alice',
+        role:'Role', linkedEmployee:'Linked Employee', linkedEmpHint:'(optional)',
+        departmentScope:'Department Scope', deptScopeHint:'(used if no employee linked)',
+        roleEmployee:'Employee — CRUD within own department',
+        roleAdmin:'Admin — view everywhere, add in Departments',
+        roleManager:'Manager — full access',
+        inactive:'Inactive', noUsers:'No users yet.', you:'(you)',
+        none:'— none —',
+        resetPassword:'Reset Password', settingNewPassword:'Setting a new password for',
+        deleteUserConfirm:'Delete user "{name}"? This cannot be undone.',
+        userCreated:'User created', userUpdated:'User updated', userDeleted:'User deleted',
+        passwordReset:'Password reset',
+        usernameRequired:'Username is required',
+        passwordMin6:'Password must be at least 6 characters',
+        saveFailed:'Save failed', resetFailed:'Reset failed',
+        failedLoadUsers:'Failed to load users', failedLoadFormData:'Failed to load form data',
+        signOut:'Sign out', toggleTheme:'Toggle Theme', toggleLanguage:'Toggle Language',
+        autoLayout:'Auto', autoPlaceholder:'auto', emptyDash:'—',
+        printIncomingTitle:'Print incoming',
+        printCurrentTitle:'Print current custody',
+        printHistoryTitle:'Print custody history',
+        quantity:'Quantity', minStockTitle:'Min stock',
+        uploadImage:'Upload image',
+        popupBlocked:'Popup blocked',
+        unknown:'Unknown',
+        editZoneBtn:'Edit Zone',
+        deleteBtn:'Delete', editBtn:'Edit',
+        printBtn:'Print',
+        defaultAreaItems:'Area Items',
+        reset:'Reset',
     },
     ar: {
         appTitle:'FABY Keeper', home:'الرئيسية', lockers:'الخزائن', warehouse:'المستودع',
@@ -211,6 +243,38 @@ const i18n = {
         targetArea:'المساحة المستهدفة', noArea:'بدون مساحة (مستوى المنطقة)',
         itemTransferred:'تم نقل العنصر',
         currentLocation:'الموقع الحالي',
+        users:'المستخدمون', addUser:'إضافة مستخدم', editUser:'تعديل المستخدم',
+        username:'اسم المستخدم', password:'كلمة المرور', newPassword:'كلمة مرور جديدة',
+        passwordHint:'(٦ أحرف على الأقل)', usernameExample:'مثال: alice',
+        role:'الصلاحية', linkedEmployee:'الموظف المرتبط', linkedEmpHint:'(اختياري)',
+        departmentScope:'نطاق القسم', deptScopeHint:'(يُستخدم إذا لم يُربط موظف)',
+        roleEmployee:'موظف — تعديل ضمن قسمه فقط',
+        roleAdmin:'مشرف — عرض شامل وإضافة في الأقسام',
+        roleManager:'مدير — صلاحية كاملة',
+        inactive:'غير نشط', noUsers:'لا يوجد مستخدمون بعد.', you:'(أنت)',
+        none:'— لا شيء —',
+        resetPassword:'إعادة تعيين كلمة المرور', settingNewPassword:'تعيين كلمة مرور جديدة لـ',
+        deleteUserConfirm:'حذف المستخدم "{name}"؟ لا يمكن التراجع.',
+        userCreated:'تم إنشاء المستخدم', userUpdated:'تم تحديث المستخدم', userDeleted:'تم حذف المستخدم',
+        passwordReset:'تمت إعادة تعيين كلمة المرور',
+        usernameRequired:'اسم المستخدم مطلوب',
+        passwordMin6:'يجب أن تكون كلمة المرور ٦ أحرف على الأقل',
+        saveFailed:'فشل الحفظ', resetFailed:'فشلت إعادة التعيين',
+        failedLoadUsers:'فشل تحميل المستخدمين', failedLoadFormData:'فشل تحميل بيانات النموذج',
+        signOut:'تسجيل الخروج', toggleTheme:'تبديل السمة', toggleLanguage:'تبديل اللغة',
+        autoLayout:'تلقائي', autoPlaceholder:'تلقائي', emptyDash:'—',
+        printIncomingTitle:'طباعة الواردة',
+        printCurrentTitle:'طباعة العهدة الحالية',
+        printHistoryTitle:'طباعة سجل العهدة',
+        quantity:'الكمية', minStockTitle:'الحد الأدنى للمخزون',
+        uploadImage:'رفع صورة',
+        popupBlocked:'تم حظر النافذة المنبثقة',
+        unknown:'غير معروف',
+        editZoneBtn:'تعديل المنطقة',
+        deleteBtn:'حذف', editBtn:'تعديل',
+        printBtn:'طباعة',
+        defaultAreaItems:'عناصر المساحة',
+        reset:'إعادة تعيين',
     }
 };
 
@@ -367,18 +431,24 @@ function applyLanguage() {
     if (langLabel) langLabel.textContent = currentLang === 'en' ? 'AR' : 'EN';
     document.querySelectorAll('[data-i18n]').forEach(function(el) { el.textContent = t(el.dataset.i18n); });
     document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) { el.placeholder = t(el.dataset.i18nPlaceholder); });
+    document.querySelectorAll('[data-i18n-title]').forEach(function(el) { el.title = t(el.dataset.i18nTitle); });
+    document.querySelectorAll('[data-i18n-aria]').forEach(function(el) { el.setAttribute('aria-label', t(el.dataset.i18nAria)); });
 }
 
 function toggleLanguage() {
     currentLang = currentLang === 'en' ? 'ar' : 'en';
     localStorage.setItem('lang', currentLang);
     applyLanguage();
-    if (currentPage === 'lockers') renderGrid();
+    // Re-render any page whose contents are produced by JS so dynamic strings
+    // (table headers, status chips, list rows, button titles, etc.) refresh too.
+    if (currentPage === 'home') loadHomeCounts();
+    else if (currentPage === 'lockers') renderGrid();
     else if (currentPage === 'warehouse') renderWarehouse();
-    else if (currentPage === 'departments') { renderDepartments(); }
-    else if (currentPage === 'employees') { renderEmployees(); }
+    else if (currentPage === 'departments') renderDepartments();
+    else if (currentPage === 'employees') renderEmployees();
     else if (currentPage === 'dept-detail') renderDeptDetail();
     else if (currentPage === 'emp-detail') renderEmpDetail();
+    else if (currentPage === 'users') renderUsers();
 }
 
 // ============ Sidebar ============
@@ -768,8 +838,8 @@ async function renderGrid() {
                 ? '<div class="locker-img-wrap"><img src="' + escapeHtml(locker.image) + '" alt="" onerror="this.parentElement.innerHTML=\'<i class=\\\'fas fa-box-open\\\'></i>\'"></div>'
                 : '<div class="locker-number">' + locker.id + '</div>';
             var displayName = locker.name ? (locker.name + ' #' + locker.id) : (t('locker') + ' #' + locker.id);
-            card.innerHTML = '<button class="btn-icon locker-delete-btn" onclick="event.stopPropagation();deleteLocker(' + locker.id + ')" title="Delete"><i class="fas fa-trash-alt"></i></button>' +
-                '<button class="btn-icon locker-edit-btn" onclick="event.stopPropagation();openEditLockerModal(' + locker.id + ')" title="Edit"><i class="fas fa-pen"></i></button>' +
+            card.innerHTML = '<button class="btn-icon locker-delete-btn" onclick="event.stopPropagation();deleteLocker(' + locker.id + ')" title="' + t('deleteBtn') + '" aria-label="' + t('deleteBtn') + '"><i class="fas fa-trash-alt"></i></button>' +
+                '<button class="btn-icon locker-edit-btn" onclick="event.stopPropagation();openEditLockerModal(' + locker.id + ')" title="' + t('editBtn') + '" aria-label="' + t('editBtn') + '"><i class="fas fa-pen"></i></button>' +
                 '<div class="locker-visual"><div class="locker-door">' + visualInner + '<div class="locker-handle"></div></div></div>' +
                 '<div class="locker-info"><div class="locker-name">' + escapeHtml(displayName) + '</div>' +
                 (locker.description ? '<div class="locker-desc">' + escapeHtml(locker.description) + '</div>' : '') +
@@ -808,7 +878,7 @@ async function openLockerModal(id) {
         document.getElementById('modalLockerName').textContent = currentLockerData.name || t('locker') + ' ' + currentLockerData.id;
         renderItems();
         document.getElementById('lockerModal').classList.add('active');
-    } catch (e) { showToast('Failed to load locker', 'error'); }
+    } catch (e) { showToast(t('failedLoad'), 'error'); }
 }
 
 function closeLockerModal() {
@@ -1439,7 +1509,7 @@ async function renderZoneDetail() {
         if (zone.description) html += '<div class="zone-detail-desc">' + escapeHtml(zone.description) + '</div>';
         html += '</div>';
         html += '<button class="btn-icon zone-edit-btn" onclick="printZone(' + zone.id + ')" title="' + t('print') + '" style="margin-right:6px"><i class="fas fa-print" style="color:' + color + '"></i></button>';
-        html += '<button class="btn-icon zone-edit-btn" onclick="openEditZoneModal()" title="Edit Zone"><i class="fas fa-pen" style="color:' + color + '"></i></button>';
+        html += '<button class="btn-icon zone-edit-btn" onclick="openEditZoneModal()" title="' + t('editZoneBtn') + '" aria-label="' + t('editZoneBtn') + '"><i class="fas fa-pen" style="color:' + color + '"></i></button>';
         html += '</div>';
 
         // Areas section
@@ -1457,8 +1527,8 @@ async function renderZoneDetail() {
                     ? '<img src="' + escapeHtml(area.image) + '" alt="" loading="lazy" decoding="async">'
                     : '<svg class="wh-svg-icon wh-svg-area" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>';
                 html += '<div class="zone-area-card' + (area.image ? ' has-image' : '') + '" onclick="openAreaItems(' + area.id + ',\'' + escapeHtml(area.name).replace(/'/g, "\\'") + '\')" tabindex="0" role="button" aria-label="' + escapeHtml(area.name) + '">';
-                html += '<button class="zone-area-edit" onclick="event.stopPropagation();openEditAreaModal(' + area.id + ',\'' + escapeHtml(area.name).replace(/'/g, "\\'") + '\',\'' + escapeHtml(area.description || '').replace(/'/g, "\\'") + '\')" title="Edit" aria-label="' + t('edit') + '"><i class="fas fa-pen"></i></button>';
-                html += '<button class="zone-area-delete" onclick="event.stopPropagation();deleteArea(' + area.id + ')" title="Delete" aria-label="' + t('delete') + '"><i class="fas fa-times"></i></button>';
+                html += '<button class="zone-area-edit" onclick="event.stopPropagation();openEditAreaModal(' + area.id + ',\'' + escapeHtml(area.name).replace(/'/g, "\\'") + '\',\'' + escapeHtml(area.description || '').replace(/'/g, "\\'") + '\')" title="' + t('editBtn') + '" aria-label="' + t('editBtn') + '"><i class="fas fa-pen"></i></button>';
+                html += '<button class="zone-area-delete" onclick="event.stopPropagation();deleteArea(' + area.id + ')" title="' + t('deleteBtn') + '" aria-label="' + t('deleteBtn') + '"><i class="fas fa-times"></i></button>';
                 html += '<div class="zone-area-card-icon zone-card-icon-fancy" style="background:' + color + '">' + areaIcon + '</div>';
                 html += '<div class="zone-area-card-name">' + escapeHtml(area.name) + '</div>';
                 html += '<div class="zone-area-card-count"><i class="fas fa-cube"></i> ' + areaItemCount + ' ' + t('items') + '</div>';
@@ -2459,7 +2529,7 @@ async function renderHistoryTab() {
                 '<div style="display:flex;align-items:center;gap:10px">' +
                 (h.employee_photo ? '<img src="' + escapeHtml(h.employee_photo) + '" style="width:32px;height:32px;border-radius:8px;object-fit:cover">' : '') +
                 '<div>' +
-                '<div class="history-entry-name" onclick="currentEmpId=' + (h.employee_id || 0) + ';navigateTo(\'emp-detail\')" style="cursor:pointer">' + escapeHtml(h.employee_name || 'Unknown') + '</div>' +
+                '<div class="history-entry-name" onclick="currentEmpId=' + (h.employee_id || 0) + ';navigateTo(\'emp-detail\')" style="cursor:pointer">' + escapeHtml(h.employee_name || t('unknown')) + '</div>' +
                 '<div class="history-entry-title">' + escapeHtml(h.job_title || '') + '</div>' +
                 '</div></div>' +
                 '<div class="history-entry-dates">' +
@@ -2791,7 +2861,7 @@ async function openCovenantModal(item) {
                 entry.className = 'history-entry status-' + (h.status || 'active');
                 var condText = '';
                 if (h.condition) condText = ' • ' + (h.condition === 'good' ? t('conditionGood') : t('conditionNotGood'));
-                var recipientName = h.to_department_id ? (h.to_department_name || '') : (h.to_employee_name || h.employee_name || 'Unknown');
+                var recipientName = h.to_department_id ? (h.to_department_name || '') : (h.to_employee_name || h.employee_name || t('unknown'));
                 var recipientIcon = h.to_department_id ? 'fa-building' : 'fa-user';
                 entry.innerHTML = '<div class="history-entry-actions">' +
                     '<button class="btn-icon" onclick="deleteCovenantEntry(' + h.id + ')"><i class="fas fa-trash-alt" style="font-size:11px;color:var(--danger)"></i></button>' +
@@ -3388,38 +3458,40 @@ async function renderUsers() {
         _usersCache = rows;
         var tbody = document.getElementById('usersTableBody');
         if (!tbody) return;
+        // Translated role label map (shown in the table chip).
+        var roleLbl = { manager: t('manager'), admin: t('roleAdmin').split(' — ')[0], employee: t('roleEmployee').split(' — ')[0] };
         if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:40px; color:rgba(255,255,255,0.4);">No users yet.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:40px; color:rgba(255,255,255,0.4);">' + t('noUsers') + '</td></tr>';
             return;
         }
         tbody.innerHTML = rows.map(function(u) {
             var statusCls = Number(u.active) ? 'active' : 'inactive';
-            var statusLbl = Number(u.active) ? 'Active' : 'Inactive';
-            var empName = u.employee_name ? escapeHtml(u.employee_name) : '<span style="color:rgba(255,255,255,0.3);">—</span>';
-            var deptName = u.department_name ? escapeHtml(u.department_name) : '<span style="color:rgba(255,255,255,0.3);">—</span>';
+            var statusLbl = Number(u.active) ? t('active') : t('inactive');
+            var empName = u.employee_name ? escapeHtml(u.employee_name) : '<span style="color:rgba(255,255,255,0.3);">' + t('emptyDash') + '</span>';
+            var deptName = u.department_name ? escapeHtml(u.department_name) : '<span style="color:rgba(255,255,255,0.3);">' + t('emptyDash') + '</span>';
             var isSelf = window.CURRENT_USER && Number(window.CURRENT_USER.id) === Number(u.id);
             return '<tr>'
-                + '<td><strong>' + escapeHtml(u.username) + '</strong>' + (isSelf ? ' <span style="color:rgba(255,255,255,0.4); font-size:12px;">(you)</span>' : '') + '</td>'
-                + '<td><span class="role-chip ' + u.role + '">' + u.role + '</span></td>'
+                + '<td><strong>' + escapeHtml(u.username) + '</strong>' + (isSelf ? ' <span style="color:rgba(255,255,255,0.4); font-size:12px;">' + t('you') + '</span>' : '') + '</td>'
+                + '<td><span class="role-chip ' + u.role + '">' + (roleLbl[u.role] || u.role) + '</span></td>'
                 + '<td><span class="status-chip ' + statusCls + '">' + statusLbl + '</span></td>'
                 + '<td>' + empName + '</td>'
                 + '<td>' + deptName + '</td>'
                 + '<td><div class="users-row-actions">'
-                +   '<button title="Edit" onclick="openUserModal(' + u.id + ')"><i class="fas fa-pen"></i></button>'
-                +   '<button title="Reset password" onclick="openResetPasswordModal(' + u.id + ', \'' + escapeHtml(u.username).replace(/'/g, "\\'") + '\')"><i class="fas fa-key"></i></button>'
-                +   (isSelf ? '' : '<button class="danger" title="Delete" onclick="deleteUser(' + u.id + ', \'' + escapeHtml(u.username).replace(/'/g, "\\'") + '\')"><i class="fas fa-trash"></i></button>')
+                +   '<button title="' + t('editBtn') + '" aria-label="' + t('editBtn') + '" onclick="openUserModal(' + u.id + ')"><i class="fas fa-pen"></i></button>'
+                +   '<button title="' + t('resetPassword') + '" aria-label="' + t('resetPassword') + '" onclick="openResetPasswordModal(' + u.id + ', \'' + escapeHtml(u.username).replace(/'/g, "\\'") + '\')"><i class="fas fa-key"></i></button>'
+                +   (isSelf ? '' : '<button class="danger" title="' + t('deleteBtn') + '" aria-label="' + t('deleteBtn') + '" onclick="deleteUser(' + u.id + ', \'' + escapeHtml(u.username).replace(/'/g, "\\'") + '\')"><i class="fas fa-trash"></i></button>')
                 + '</div></td>'
                 + '</tr>';
         }).join('');
     } catch (err) {
-        showToast(err.message || 'Failed to load users', 'error');
+        showToast(err.message || t('failedLoadUsers'), 'error');
     }
 }
 
 async function openUserModal(userId) {
     var modal = document.getElementById('userModal');
     document.getElementById('userModalId').value = userId || '';
-    document.getElementById('userModalTitle').textContent = userId ? 'Edit User' : 'Add User';
+    document.getElementById('userModalTitle').textContent = userId ? t('editUser') : t('addUser');
     document.getElementById('userModalUsername').value = '';
     document.getElementById('userModalPassword').value = '';
     document.getElementById('userModalRole').value = 'employee';
@@ -3431,10 +3503,10 @@ async function openUserModal(userId) {
     try {
         var [emps, depts] = await Promise.all([API.getEmployees(), API.getDepartments()]);
         var empSel = document.getElementById('userModalEmployee');
-        empSel.innerHTML = '<option value="">— none —</option>' +
+        empSel.innerHTML = '<option value="">' + t('none') + '</option>' +
             emps.map(function(e){ return '<option value="'+e.id+'">'+escapeHtml(e.name)+(e.department_name?' ('+escapeHtml(e.department_name)+')':'')+'</option>'; }).join('');
         var deptSel = document.getElementById('userModalDepartment');
-        deptSel.innerHTML = '<option value="">— none —</option>' +
+        deptSel.innerHTML = '<option value="">' + t('none') + '</option>' +
             depts.map(function(d){ return '<option value="'+d.id+'">'+escapeHtml(d.name)+'</option>'; }).join('');
 
         if (userId) {
@@ -3448,7 +3520,7 @@ async function openUserModal(userId) {
             }
         }
     } catch (e) {
-        showToast('Failed to load form data: ' + e.message, 'error');
+        showToast(t('failedLoadFormData') + ': ' + e.message, 'error');
     }
 
     modal.classList.add('active');
@@ -3465,21 +3537,21 @@ async function saveUser() {
     var department_id = document.getElementById('userModalDepartment').value || null;
     var active = document.getElementById('userModalActive').checked;
 
-    if (!username) return showToast('Username is required', 'error');
-    if (!id && (!password || password.length < 6)) return showToast('Password must be at least 6 characters', 'error');
+    if (!username) return showToast(t('usernameRequired'), 'error');
+    if (!id && (!password || password.length < 6)) return showToast(t('passwordMin6'), 'error');
 
     try {
         if (id) {
             await API.updateUser(id, { username, role, active, employee_id, department_id });
-            showToast('User updated', 'success');
+            showToast(t('userUpdated'), 'success');
         } else {
             await API.createUser({ username, password, role, employee_id, department_id });
-            showToast('User created', 'success');
+            showToast(t('userCreated'), 'success');
         }
         closeModal('userModal');
         renderUsers();
     } catch (err) {
-        showToast(err.message || 'Save failed', 'error');
+        showToast(err.message || t('saveFailed'), 'error');
     }
 }
 
@@ -3493,24 +3565,24 @@ function openResetPasswordModal(userId, username) {
 async function confirmResetPassword() {
     var id = document.getElementById('resetPwUserId').value;
     var pw = document.getElementById('resetPwValue').value;
-    if (!pw || pw.length < 6) return showToast('Password must be at least 6 characters', 'error');
+    if (!pw || pw.length < 6) return showToast(t('passwordMin6'), 'error');
     try {
         await API.resetUserPassword(id, pw);
         closeModal('resetPwModal');
-        showToast('Password reset', 'success');
+        showToast(t('passwordReset'), 'success');
     } catch (err) {
-        showToast(err.message || 'Reset failed', 'error');
+        showToast(err.message || t('resetFailed'), 'error');
     }
 }
 
 async function deleteUser(id, username) {
-    if (!confirm('Delete user "' + username + '"? This cannot be undone.')) return;
+    if (!confirm(t('deleteUserConfirm').replace('{name}', username))) return;
     try {
         await API.deleteUser(id);
-        showToast('User deleted', 'success');
+        showToast(t('userDeleted'), 'success');
         renderUsers();
     } catch (err) {
-        showToast(err.message || 'Delete failed', 'error');
+        showToast(err.message || t('saveFailed'), 'error');
     }
 }
 
@@ -3626,7 +3698,7 @@ function printTable(opts) {
 '</body></html>';
 
     var w = window.open('', '_blank');
-    if (!w) { showToast('Popup blocked', 'error'); return; }
+    if (!w) { showToast(t('popupBlocked'), 'error'); return; }
     w.document.open();
     w.document.write(html);
     w.document.close();
