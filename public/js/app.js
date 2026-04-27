@@ -100,6 +100,11 @@ const i18n = {
         imageTooLarge:'Image is too large. Maximum 5 MB.',
         imageInvalidType:'Only JPG, PNG, or WEBP images are allowed.',
         uploading:'Uploading…',
+        transferItem:'Transfer Item', transfer:'Transfer',
+        targetZone:'Target Zone', selectTargetZone:'Select target zone',
+        targetArea:'Target Area', noArea:'No area (zone-level)',
+        itemTransferred:'Item transferred',
+        currentLocation:'Current location',
     },
     ar: {
         appTitle:'FABY Keeper', home:'الرئيسية', lockers:'الخزائن', warehouse:'المستودع',
@@ -201,6 +206,11 @@ const i18n = {
         imageTooLarge:'حجم الصورة كبير جداً. الحد الأقصى 5 ميجابايت.',
         imageInvalidType:'يُسمح فقط بصور JPG أو PNG أو WEBP.',
         uploading:'جاري الرفع…',
+        transferItem:'نقل العنصر', transfer:'نقل',
+        targetZone:'المنطقة المستهدفة', selectTargetZone:'اختر المنطقة المستهدفة',
+        targetArea:'المساحة المستهدفة', noArea:'بدون مساحة (مستوى المنطقة)',
+        itemTransferred:'تم نقل العنصر',
+        currentLocation:'الموقع الحالي',
     }
 };
 
@@ -1486,7 +1496,8 @@ function openAreaItems(areaId, areaName) {
             var card = document.createElement('div');
             card.className = 'area-item-card';
             card.innerHTML =
-                '<button class="area-item-delete" onclick="deleteZoneItem(' + item.id + ')" title="Delete"><i class="fas fa-times"></i></button>' +
+                '<button class="area-item-transfer" onclick="openTransferItemModal(' + item.id + ',\'' + escapeHtml(item.name).replace(/\\/g,"\\\\").replace(/\'/g,"\\\'") + '\')" title="' + t('transferItem') + '" aria-label="' + t('transferItem') + '"><i class="fas fa-exchange-alt"></i></button>' +
+                '<button class="area-item-delete" onclick="deleteZoneItem(' + item.id + ')" title="' + t('delete') + '" aria-label="' + t('delete') + '"><i class="fas fa-times"></i></button>' +
                 '<div class="area-item-image" ' + (item.image ? 'onclick="openImageViewer(\'' + escapeHtml(item.image) + '\')" style="cursor:pointer"' : '') + '>' +
                     (item.image
                         ? '<img src="' + escapeHtml(item.image) + '" alt="' + escapeHtml(item.name) + '" loading="lazy" decoding="async" onerror="this.outerHTML=\'<svg class=&quot;wh-svg-icon wh-svg-item&quot; viewBox=&quot;0 0 24 24&quot; aria-hidden=&quot;true&quot;><path d=&quot;M12 2l9 5v10l-9 5-9-5V7zM12 4.2L5 8v8l7 3.8 7-3.8V8z&quot;/></svg>\'">'
@@ -1735,6 +1746,106 @@ async function deleteZoneItem(id) {
         await renderZoneDetail();
         showToast(t('itemRemoved'));
     } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ============ Transfer Warehouse Item ============
+// State for the in-flight transfer (item id + cached areas-by-zone).
+var _transfer = { itemId: null, item: null, areasCache: {} };
+
+function _findWarehouseItem(itemId) {
+    if (!currentZoneData) return null;
+    var hit = (currentZoneData.items || []).find(function(i) { return i.id === itemId; });
+    if (hit) return hit;
+    var areas = currentZoneData.areas || [];
+    for (var i = 0; i < areas.length; i++) {
+        var inArea = (areas[i].items || []).find(function(it) { return it.id === itemId; });
+        if (inArea) return inArea;
+    }
+    return null;
+}
+
+async function openTransferItemModal(itemId, itemName) {
+    _transfer.itemId = itemId;
+    _transfer.item = _findWarehouseItem(itemId);
+    _transfer.areasCache = {};
+
+    var zoneSel = document.getElementById('transferTargetZone');
+    var areaSel = document.getElementById('transferTargetArea');
+    zoneSel.innerHTML = '<option value="">' + t('selectTargetZone') + '</option>';
+    areaSel.innerHTML = '<option value="">' + t('noArea') + '</option>';
+
+    var info = document.getElementById('transferItemInfo');
+    var pathBits = [];
+    if (_transfer.item) {
+        if (currentZoneData && currentZoneData.name) pathBits.push(escapeHtml(currentZoneData.name));
+        var currArea = (currentZoneData.areas || []).find(function(a) { return a.id === _transfer.item.area_id; });
+        if (currArea) pathBits.push(escapeHtml(currArea.name));
+    }
+    info.innerHTML = '<div class="search-item-name">' + escapeHtml(itemName || '') + '</div>' +
+        (pathBits.length ? '<div class="search-item-sub">' + t('currentLocation') + ': ' + pathBits.join(' &rsaquo; ') + '</div>' : '');
+
+    try {
+        var zones = await API.getZones();
+        zones.forEach(function(z) {
+            var opt = document.createElement('option');
+            opt.value = String(z.id);
+            opt.textContent = z.name;
+            if (currentZoneId && Number(z.id) === Number(currentZoneId)) opt.selected = true;
+            zoneSel.appendChild(opt);
+        });
+        if (currentZoneId) await onTransferZoneChange();
+    } catch (e) { showToast(e.message, 'error'); }
+
+    document.getElementById('transferItemModal').classList.add('active');
+}
+
+async function onTransferZoneChange() {
+    var zoneSel = document.getElementById('transferTargetZone');
+    var areaSel = document.getElementById('transferTargetArea');
+    var zid = parseInt(zoneSel.value);
+    areaSel.innerHTML = '<option value="">' + t('noArea') + '</option>';
+    if (!zid) return;
+    try {
+        if (!_transfer.areasCache[zid]) {
+            _transfer.areasCache[zid] = await API.getAreas(zid);
+        }
+        _transfer.areasCache[zid].forEach(function(a) {
+            var opt = document.createElement('option');
+            opt.value = String(a.id);
+            opt.textContent = a.name;
+            // Pre-select the item's current area when the user lands on its current zone.
+            if (_transfer.item && Number(a.id) === Number(_transfer.item.area_id) && Number(zid) === Number(_transfer.item.zone_id)) {
+                opt.selected = true;
+            }
+            areaSel.appendChild(opt);
+        });
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function confirmTransferItem() {
+    if (!_transfer.itemId) return;
+    var zid = parseInt(document.getElementById('transferTargetZone').value);
+    var aidRaw = document.getElementById('transferTargetArea').value;
+    if (!zid) { showToast(t('selectTargetZone'), 'error'); return; }
+    var aid = aidRaw ? parseInt(aidRaw) : null;
+
+    try {
+        await API.transferZoneItem(_transfer.itemId, { zone_id: zid, area_id: aid });
+        closeModal('transferItemModal');
+        showToast(t('itemTransferred'));
+
+        // Reload the zone we are viewing — the item may have left it. If we
+        // were inside an area modal, refresh it, then the zone detail.
+        currentZoneData = await API.getZone(currentZoneId);
+        if (currentAreaId) {
+            var stillThere = (currentZoneData.areas || []).find(function(a) { return a.id === currentAreaId; });
+            if (stillThere) openAreaItems(currentAreaId, stillThere.name);
+            else closeModal('areaItemsModal');
+        }
+        await renderZoneDetail();
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
 }
 
 async function uploadZoneItemImg(id, file) {

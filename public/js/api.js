@@ -80,6 +80,7 @@ const API = {
     addZoneItem(zid, data) { return this.request('POST', '/warehouse/' + zid + '/items', data); },
     updateZoneItem(id, d)  { return this.request('PUT', '/warehouse/items/' + id, d); },
     deleteZoneItem(id)     { return this.request('DELETE', '/warehouse/items/' + id); },
+    transferZoneItem(id, data) { return this.request('PATCH', '/warehouse/items/' + id + '/transfer', data); },
     uploadZoneItemImage(id, file) { return this.upload('/warehouse/items/' + id + '/image', file); },
 
     // Departments

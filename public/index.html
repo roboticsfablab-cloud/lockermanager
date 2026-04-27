@@ -850,6 +850,43 @@
     </div>
 </div>
 
+<!-- Transfer Warehouse Item Modal (zone/area) -->
+<div class="modal-overlay" id="transferItemModal">
+    <div class="modal-content modal-sm">
+        <div class="modal-header">
+            <h2>
+                <svg class="wh-svg-icon wh-svg-area" viewBox="0 0 24 24" aria-hidden="true" style="margin-inline-end:8px"><path d="M7 10h10l-3-3 1.4-1.4L21 11l-5.6 5.4L14 15l3-3H7z"/></svg>
+                <span data-i18n="transferItem">Transfer Item</span>
+            </h2>
+            <button class="modal-close" onclick="closeModal('transferItemModal')">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="move-item-info" id="transferItemInfo"></div>
+            <div class="form-group">
+                <label data-i18n="targetZone">Target Zone</label>
+                <select id="transferTargetZone" onchange="onTransferZoneChange()">
+                    <option value="" data-i18n="selectTargetZone">Select target zone</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label data-i18n="targetArea">Target Area</label>
+                <select id="transferTargetArea">
+                    <option value="" data-i18n="noArea">No area (zone-level)</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeModal('transferItemModal')" data-i18n="cancel">Cancel</button>
+            <button class="btn-add" onclick="confirmTransferItem()">
+                <svg class="wh-svg-icon wh-svg-area" viewBox="0 0 24 24" aria-hidden="true" style="margin-inline-end:6px"><path d="M7 10h10l-3-3 1.4-1.4L21 11l-5.6 5.4L14 15l3-3H7z"/></svg>
+                <span data-i18n="transfer">Transfer</span>
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Move Item Modal -->
 <div class="modal-overlay" id="moveItemModal">
     <div class="modal-content modal-sm">

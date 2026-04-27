@@ -173,6 +173,39 @@ module.exports = function (db) {
         res.json({ success: true });
     });
 
+    // Transfer an item to another zone / area. Validates the zone exists, and
+    // — if an area is provided — that the area actually lives in that zone,
+    // so we never end up with cross-zone area_id pointers.
+    router.patch('/items/:id/transfer', async (req, res) => {
+        const itemId = req.params.id;
+        const zoneId = parseInt(req.body.zone_id);
+        const rawArea = req.body.area_id;
+        const areaId = (rawArea === null || rawArea === undefined || rawArea === '' || rawArea === 0) ? null : parseInt(rawArea);
+
+        if (!zoneId) return res.status(400).json({ error: 'Target zone is required' });
+
+        const item = await db.execute({ sql: 'SELECT * FROM warehouse_items WHERE id = ?', args: [itemId] });
+        if (item.rows.length === 0) return res.status(404).json({ error: 'Item not found' });
+
+        const zone = await db.execute({ sql: 'SELECT id FROM warehouse_zones WHERE id = ?', args: [zoneId] });
+        if (zone.rows.length === 0) return res.status(404).json({ error: 'Target zone not found' });
+
+        if (areaId !== null) {
+            const area = await db.execute({ sql: 'SELECT id, zone_id FROM warehouse_areas WHERE id = ?', args: [areaId] });
+            if (area.rows.length === 0) return res.status(404).json({ error: 'Target area not found' });
+            if (Number(area.rows[0].zone_id) !== zoneId) {
+                return res.status(400).json({ error: 'Target area does not belong to the target zone' });
+            }
+        }
+
+        await db.execute({
+            sql: 'UPDATE warehouse_items SET zone_id = ?, area_id = ? WHERE id = ?',
+            args: [zoneId, areaId, itemId]
+        });
+        const updated = await db.execute({ sql: 'SELECT * FROM warehouse_items WHERE id = ?', args: [itemId] });
+        res.json(updated.rows[0]);
+    });
+
     router.post('/items/:id/image', uploadImage, async (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
         const cloudResult = await uploadToCloudinary(req.file.buffer, 'warehouse');
