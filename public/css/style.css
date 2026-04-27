@@ -8589,6 +8589,15 @@ button:not(:disabled):active {
   outline-offset: 2px;
 }
 
+/* Transfer is launched on top of the area-items modal (and sometimes the zone
+   detail). All .modal-overlay share z-index: 200, so DOM order would normally
+   bury this dialog behind whatever was opened earlier. Lift it above. */
+#transferItemModal {
+  z-index: 260;
+}
+#transferItemModal .modal-content {
+  z-index: 261;
+}
 #transferItemModal .move-item-info {
   background: var(--bg-input);
   border: 1px solid var(--glass-border);
