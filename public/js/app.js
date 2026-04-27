@@ -96,6 +96,10 @@ const i18n = {
         report:'Report', generatedOn:'Generated on', page:'Page', of:'of',
         filteredResults:'Filtered results', allResults:'All results',
         noData:'No data to print', category:'Category', location:'Location',
+        imageOptional:'Image (optional)', removeImage:'Remove image', replaceImage:'Replace image',
+        imageTooLarge:'Image is too large. Maximum 5 MB.',
+        imageInvalidType:'Only JPG, PNG, or WEBP images are allowed.',
+        uploading:'Uploading…',
     },
     ar: {
         appTitle:'FABY Keeper', home:'الرئيسية', lockers:'الخزائن', warehouse:'المستودع',
@@ -193,6 +197,10 @@ const i18n = {
         report:'تقرير', generatedOn:'تم التوليد في', page:'صفحة', of:'من',
         filteredResults:'النتائج المصفاة', allResults:'جميع النتائج',
         noData:'لا توجد بيانات للطباعة', category:'الفئة', location:'الموقع',
+        imageOptional:'صورة (اختياري)', removeImage:'إزالة الصورة', replaceImage:'تغيير الصورة',
+        imageTooLarge:'حجم الصورة كبير جداً. الحد الأقصى 5 ميجابايت.',
+        imageInvalidType:'يُسمح فقط بصور JPG أو PNG أو WEBP.',
+        uploading:'جاري الرفع…',
     }
 };
 
@@ -237,6 +245,80 @@ function getActiveCustody(item) {
         if (item.covenant_history[i].status === 'active') return item.covenant_history[i];
     }
     return null;
+}
+
+// ============ Image Picker (shared by zone/area/item create+edit) ============
+// Validates type/size client-side, draws a live preview, and lets the user
+// remove the pick or revert to the placeholder before saving.
+const ALLOWED_IMG_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const MAX_IMG_BYTES = 5 * 1024 * 1024;
+const _imagePickerState = {}; // key -> { file, removed }
+
+function _imagePickerEls(key) {
+    return {
+        preview: document.getElementById(key + 'Preview'),
+        file:    document.getElementById(key + 'ImageFile'),
+        remove:  document.getElementById(key + 'RemoveBtn'),
+    };
+}
+
+function _drawPreview(previewEl, src, fallbackSvg) {
+    if (!previewEl) return;
+    if (src) {
+        previewEl.innerHTML = '<img src="' + src + '" alt="">';
+        previewEl.classList.add('has-image');
+    } else {
+        previewEl.innerHTML = fallbackSvg || '';
+        previewEl.classList.remove('has-image');
+    }
+}
+
+function handleImagePick(key, inputEl) {
+    var els = _imagePickerEls(key);
+    var file = inputEl && inputEl.files && inputEl.files[0];
+    if (!file) return;
+    if (ALLOWED_IMG_TYPES.indexOf(file.type) === -1) {
+        showToast(t('imageInvalidType'), 'error');
+        inputEl.value = '';
+        return;
+    }
+    if (file.size > MAX_IMG_BYTES) {
+        showToast(t('imageTooLarge'), 'error');
+        inputEl.value = '';
+        return;
+    }
+    _imagePickerState[key] = { file: file, removed: false };
+    var fallback = els.preview ? els.preview.dataset.fallback || '' : '';
+    var url = URL.createObjectURL(file);
+    _drawPreview(els.preview, url, fallback);
+    if (els.remove) els.remove.hidden = false;
+}
+
+function clearImagePick(key) {
+    var els = _imagePickerEls(key);
+    if (els.file) els.file.value = '';
+    _imagePickerState[key] = { file: null, removed: true };
+    var fallback = els.preview ? els.preview.dataset.fallback || '' : '';
+    _drawPreview(els.preview, null, fallback);
+    if (els.remove) els.remove.hidden = true;
+}
+
+function resetImagePicker(key, currentImageUrl) {
+    var els = _imagePickerEls(key);
+    if (els.file) els.file.value = '';
+    _imagePickerState[key] = { file: null, removed: false };
+    if (els.preview && !els.preview.dataset.fallback) {
+        // Snapshot the original SVG placeholder once so we can restore it on remove.
+        els.preview.dataset.fallback = els.preview.innerHTML;
+    }
+    var fallback = els.preview ? els.preview.dataset.fallback : '';
+    _drawPreview(els.preview, currentImageUrl || null, fallback);
+    if (els.remove) els.remove.hidden = !currentImageUrl;
+}
+
+function getPickedFile(key) {
+    var s = _imagePickerState[key];
+    return s && s.file ? s.file : null;
 }
 
 function getStatus(qty, minStock) {
@@ -407,7 +489,7 @@ function navigateTo(page) {
 
 function handleAddBtn() {
     if (currentPage === 'lockers') openAddLockerModal();
-    else if (currentPage === 'warehouse') document.getElementById('addZoneModal').classList.add('active');
+    else if (currentPage === 'warehouse') openAddZoneModal();
     else if (currentPage === 'departments') openAddDeptModal();
     else if (currentPage === 'employees') openAddEmpModal();
 }
@@ -430,16 +512,47 @@ function openImageViewer(src) {
 }
 function closeImageViewer() { document.getElementById('imageViewer').classList.remove('active'); }
 
+// ============ Deep Search (single endpoint, abort + debounce) ============
+// One in-flight request at a time per search box, cancelled on next keystroke.
+// 300ms debounce keeps the DB cool while feeling responsive.
+var _searchAbort = null;
+
+function _renderSearchLoading(container) {
+    container.style.display = 'block';
+    container.classList.add('open');
+    container.innerHTML = '<div class="search-empty"><i class="fas fa-spinner fa-spin"></i> ' + t('loading') + '</div>';
+}
+function _renderSearchEmpty(container) {
+    container.style.display = 'none';
+    container.classList.remove('open');
+    container.innerHTML = '';
+}
+async function _runSearch(value, container, render) {
+    var v = (value || '').trim();
+    if (!v) return _renderSearchEmpty(container);
+    _renderSearchLoading(container);
+    if (_searchAbort) { try { _searchAbort.abort(); } catch (_) {} }
+    var ctrl = new AbortController();
+    _searchAbort = ctrl;
+    try {
+        var res = await fetch('/api/search?q=' + encodeURIComponent(v), { credentials: 'same-origin', signal: ctrl.signal });
+        if (!res.ok) throw new Error('Search failed');
+        var data = await res.json();
+        if (ctrl.signal.aborted) return;
+        render(container, data, v);
+    } catch (e) {
+        if (e.name === 'AbortError') return;
+        container.innerHTML = '<div class="search-empty">' + t('failedLoad') + '</div>';
+    }
+}
+
 // ============ Global Search (Sidebar) ============
 function handleGlobalSearch(value) {
     clearTimeout(searchTimeout);
     var results = document.getElementById('sidebarSearchResults');
-    if (!value.trim()) { results.style.display = 'none'; return; }
-    searchTimeout = setTimeout(async function() {
-        try {
-            var data = await API.search(value.trim());
-            renderSearchResults(results, data, true);
-        } catch (e) { results.style.display = 'none'; }
+    if (!value.trim()) { _renderSearchEmpty(results); return; }
+    searchTimeout = setTimeout(function() {
+        _runSearch(value, results, function(c, data) { renderSearchResults(c, data, true); });
     }, 300);
 }
 
@@ -447,48 +560,38 @@ function handleGlobalSearch(value) {
 function handleLockerSearch(value) {
     clearTimeout(searchTimeout);
     var results = document.getElementById('lockerSearchResults');
-    if (!value.trim()) { results.style.display = 'none'; return; }
-    searchTimeout = setTimeout(async function() {
-        try {
-            var data = await API.search(value.trim());
-            renderSearchResults(results, { lockers: data.lockers, items: data.items }, false);
-        } catch (e) { results.style.display = 'none'; }
+    if (!value.trim()) { _renderSearchEmpty(results); return; }
+    searchTimeout = setTimeout(function() {
+        _runSearch(value, results, function(c, data) { renderSearchResults(c, { lockers: data.lockers, items: data.items }, false); });
     }, 300);
 }
 
 function handleWarehouseSearch(value) {
     clearTimeout(searchTimeout);
     var results = document.getElementById('warehouseSearchResults');
-    if (!value.trim()) { results.style.display = 'none'; return; }
-    searchTimeout = setTimeout(async function() {
-        try {
-            var data = await API.search(value.trim());
-            renderSearchResults(results, { zones: data.zones }, false);
-        } catch (e) { results.style.display = 'none'; }
+    if (!value.trim()) { _renderSearchEmpty(results); return; }
+    searchTimeout = setTimeout(function() {
+        _runSearch(value, results, function(c, data) {
+            renderSearchResults(c, { zones: data.zones, areas: data.areas, warehouse_items: data.warehouse_items }, false);
+        });
     }, 300);
 }
 
 function handleDeptSearch(value) {
     clearTimeout(searchTimeout);
     var results = document.getElementById('deptSearchResults');
-    if (!value.trim()) { results.style.display = 'none'; return; }
-    searchTimeout = setTimeout(async function() {
-        try {
-            var data = await API.search(value.trim());
-            renderSearchResults(results, { departments: data.departments }, false);
-        } catch (e) { results.style.display = 'none'; }
+    if (!value.trim()) { _renderSearchEmpty(results); return; }
+    searchTimeout = setTimeout(function() {
+        _runSearch(value, results, function(c, data) { renderSearchResults(c, { departments: data.departments }, false); });
     }, 300);
 }
 
 function handleEmpSearch(value) {
     clearTimeout(searchTimeout);
     var results = document.getElementById('empSearchResults');
-    if (!value.trim()) { results.style.display = 'none'; return; }
-    searchTimeout = setTimeout(async function() {
-        try {
-            var data = await API.search(value.trim());
-            renderSearchResults(results, { employees: data.employees }, false);
-        } catch (e) { results.style.display = 'none'; }
+    if (!value.trim()) { _renderSearchEmpty(results); return; }
+    searchTimeout = setTimeout(function() {
+        _runSearch(value, results, function(c, data) { renderSearchResults(c, { employees: data.employees }, false); });
     }, 300);
 }
 
@@ -500,35 +603,62 @@ function renderSearchResults(container, data, isGlobal) {
         hasResults = true;
         container.innerHTML += '<div class="search-section-title">' + t('lockers') + '</div>';
         data.lockers.forEach(function(l) {
-            container.innerHTML += '<div class="search-item" onclick="pickSearchResult(this);navigateTo(\'lockers\');setTimeout(function(){openLockerModal(' + l.id + ')},200)"><i class="fas fa-box-open"></i><div><div class="search-item-name">' + t('locker') + ' ' + l.id + (l.name ? ' - ' + escapeHtml(l.name) : '') + '</div><div class="search-item-detail">' + Number(l.item_count || 0) + ' ' + t('items') + '</div></div></div>';
+            container.innerHTML += '<div class="search-item" onclick="pickSearchResult(this);navigateTo(\'lockers\');setTimeout(function(){openLockerModal(' + l.id + ')},200)"><i class="fas fa-box-open"></i><div class="search-item-text"><div class="search-item-name">' + t('locker') + ' ' + l.id + (l.name ? ' - ' + escapeHtml(l.name) : '') + '</div><div class="search-item-sub">' + Number(l.item_count || 0) + ' ' + t('items') + '</div></div></div>';
         });
     }
     if (data.items && data.items.length > 0) {
         hasResults = true;
         container.innerHTML += '<div class="search-section-title">' + t('allItems') + '</div>';
         data.items.forEach(function(item) {
-            container.innerHTML += '<div class="search-item" onclick="pickSearchResult(this);highlightItemId=' + item.id + ';navigateTo(\'lockers\');setTimeout(function(){openLockerModal(' + item.locker_id + ')},200)"><i class="fas fa-cube"></i><div><div class="search-item-name">' + escapeHtml(item.name) + '</div><div class="search-item-detail">' + t('locker') + ' ' + item.locker_id + ' &middot; ' + t('qty') + ': ' + Number(item.qty) + '</div></div></div>';
+            container.innerHTML += '<div class="search-item" onclick="pickSearchResult(this);highlightItemId=' + item.id + ';navigateTo(\'lockers\');setTimeout(function(){openLockerModal(' + item.locker_id + ')},200)"><i class="fas fa-cube"></i><div class="search-item-text"><div class="search-item-name">' + escapeHtml(item.name) + '</div><div class="search-item-sub">' + t('locker') + ' ' + item.locker_id + ' &middot; ' + t('qty') + ': ' + Number(item.qty) + '</div></div></div>';
         });
     }
     if (data.zones && data.zones.length > 0) {
         hasResults = true;
         container.innerHTML += '<div class="search-section-title">' + t('zones') + '</div>';
         data.zones.forEach(function(z) {
-            container.innerHTML += '<div class="search-item" onclick="pickSearchResult(this);currentZoneId=' + z.id + ';navigateTo(\'warehouse\')"><i class="fas fa-warehouse"></i><div><div class="search-item-name">' + escapeHtml(z.name) + '</div><div class="search-item-detail">' + escapeHtml(z.location || '') + '</div></div></div>';
+            container.innerHTML += '<div class="search-item" onclick="pickSearchResult(this);openZoneFromSearch(' + z.id + ')">' +
+                '<svg class="wh-svg-icon wh-svg-zone" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>' +
+                '<div class="search-item-text"><div class="search-item-name">' + escapeHtml(z.name) +
+                ' <span class="search-level-badge level-warehouse">' + t('zone') + '</span></div>' +
+                '<div class="search-item-sub">' + escapeHtml(z.location || z.description || '') + '</div></div></div>';
+        });
+    }
+    if (data.areas && data.areas.length > 0) {
+        hasResults = true;
+        container.innerHTML += '<div class="search-section-title">' + t('areas') + '</div>';
+        data.areas.forEach(function(a) {
+            container.innerHTML += '<div class="search-item" onclick="pickSearchResult(this);openAreaFromSearch(' + a.zone_id + ',' + a.id + ',\'' + escapeHtml(a.name).replace(/\'/g, "\\\'") + '\')">' +
+                '<svg class="wh-svg-icon wh-svg-area" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>' +
+                '<div class="search-item-text"><div class="search-item-name">' + escapeHtml(a.name) +
+                ' <span class="search-level-badge level-area">' + t('area') + '</span></div>' +
+                '<div class="search-item-sub">' + escapeHtml(a.zone_name || '') + ' &rsaquo; ' + escapeHtml(a.name) + '</div></div></div>';
+        });
+    }
+    if (data.warehouse_items && data.warehouse_items.length > 0) {
+        hasResults = true;
+        container.innerHTML += '<div class="search-section-title">' + t('items') + '</div>';
+        data.warehouse_items.forEach(function(wi) {
+            var path = escapeHtml(wi.zone_name || '') + (wi.area_name ? ' &rsaquo; ' + escapeHtml(wi.area_name) : '') + ' &rsaquo; ' + escapeHtml(wi.name);
+            container.innerHTML += '<div class="search-item" onclick="pickSearchResult(this);openWarehouseItemFromSearch(' + wi.zone_id + ',' + (wi.area_id || 'null') + ',\'' + escapeHtml(wi.area_name || '').replace(/\'/g, "\\\'") + '\')">' +
+                '<svg class="wh-svg-icon wh-svg-item" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l9 5v10l-9 5-9-5V7zM12 4.2L5 8v8l7 3.8 7-3.8V8z"/><path d="M12 8.5l3.5 1.9v3.2L12 15.5l-3.5-1.9V10.4z"/></svg>' +
+                '<div class="search-item-text"><div class="search-item-name">' + escapeHtml(wi.name) +
+                ' <span class="search-level-badge level-item">' + t('itemName') + '</span></div>' +
+                '<div class="search-item-sub">' + path + ' &middot; ' + t('qty') + ': ' + Number(wi.qty) + '</div></div></div>';
         });
     }
     if (data.employees && data.employees.length > 0) {
         hasResults = true;
         container.innerHTML += '<div class="search-section-title">' + t('employees') + '</div>';
         data.employees.forEach(function(emp) {
-            container.innerHTML += '<div class="search-item" onclick="pickSearchResult(this);currentEmpId=' + emp.id + ';navigateTo(\'emp-detail\')"><i class="fas fa-user-tie"></i><div><div class="search-item-name">' + escapeHtml(emp.name) + '</div><div class="search-item-detail">' + escapeHtml(emp.job_title || '') + (emp.department_name ? ' &middot; ' + escapeHtml(emp.department_name) : '') + '</div></div></div>';
+            container.innerHTML += '<div class="search-item" onclick="pickSearchResult(this);currentEmpId=' + emp.id + ';navigateTo(\'emp-detail\')"><i class="fas fa-user-tie"></i><div class="search-item-text"><div class="search-item-name">' + escapeHtml(emp.name) + '</div><div class="search-item-sub">' + escapeHtml(emp.job_title || '') + (emp.department_name ? ' &middot; ' + escapeHtml(emp.department_name) : '') + '</div></div></div>';
         });
     }
     if (data.departments && data.departments.length > 0) {
         hasResults = true;
         container.innerHTML += '<div class="search-section-title">' + t('departments') + '</div>';
         data.departments.forEach(function(d) {
-            container.innerHTML += '<div class="search-item" onclick="pickSearchResult(this);currentDeptId=' + d.id + ';navigateTo(\'dept-detail\')"><i class="fas fa-building"></i><div><div class="search-item-name">' + escapeHtml(d.name) + '</div><div class="search-item-detail">' + (d.manager ? escapeHtml(d.manager) : '') + '</div></div></div>';
+            container.innerHTML += '<div class="search-item" onclick="pickSearchResult(this);currentDeptId=' + d.id + ';navigateTo(\'dept-detail\')"><i class="fas fa-building"></i><div class="search-item-text"><div class="search-item-name">' + escapeHtml(d.name) + '</div><div class="search-item-sub">' + (d.manager ? escapeHtml(d.manager) : '') + '</div></div></div>';
         });
     }
 
@@ -1217,6 +1347,22 @@ function selectZone(id) {
     renderWarehouse();
 }
 
+// Search-result navigation: jump straight to the matched warehouse level.
+function openZoneFromSearch(zoneId) {
+    selectZone(zoneId);
+    if (currentPage !== 'warehouse') navigateTo('warehouse');
+}
+function openAreaFromSearch(zoneId, areaId, areaName) {
+    selectZone(zoneId);
+    if (currentPage !== 'warehouse') navigateTo('warehouse');
+    setTimeout(function() { openAreaItems(areaId, areaName); }, 250);
+}
+function openWarehouseItemFromSearch(zoneId, areaId, areaName) {
+    selectZone(zoneId);
+    if (currentPage !== 'warehouse') navigateTo('warehouse');
+    if (areaId) setTimeout(function() { openAreaItems(areaId, areaName); }, 250);
+}
+
 function renderZoneGrid(zones) {
     var content = document.getElementById('warehouseContent');
     content.innerHTML = '';
@@ -1233,14 +1379,19 @@ function renderZoneGrid(zones) {
         var color = z.color || '#7b2ff7';
         var hasAlert = Number(z.low_stock_count) > 0;
         var card = document.createElement('div');
-        card.className = 'zone-card';
+        card.className = 'zone-card' + (z.image ? ' zone-card-with-image' : '');
         card.style.animationDelay = (idx * 0.08) + 's';
         card.onclick = function() { selectZone(z.id); };
-        card.innerHTML = '<button class="btn-icon zone-card-print" onclick="event.stopPropagation();printZone(' + z.id + ')" title="' + t('print') + '"><i class="fas fa-print"></i></button>' +
-            '<button class="btn-icon zone-card-delete" onclick="event.stopPropagation();deleteZone(' + z.id + ')"><i class="fas fa-trash-alt" style="color:var(--danger)"></i></button>' +
+        var iconInner = z.image
+            ? '<img src="' + escapeHtml(z.image) + '" alt="" loading="lazy" decoding="async" onerror="this.outerHTML=\'<svg class=&quot;wh-svg-icon wh-svg-zone&quot; viewBox=&quot;0 0 24 24&quot; aria-hidden=&quot;true&quot;><path d=&quot;M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z&quot;/></svg>\'">'
+            : (hasAlert
+                ? '<svg class="wh-svg-icon wh-svg-alert" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2L1 21h22L12 2zm0 6l7.53 13H4.47L12 8zm-1 5h2v4h-2zm0 5h2v2h-2z"/></svg>'
+                : '<svg class="wh-svg-icon wh-svg-zone" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>');
+        card.innerHTML = '<button class="btn-icon zone-card-print" onclick="event.stopPropagation();printZone(' + z.id + ')" title="' + t('print') + '" aria-label="' + t('print') + '"><i class="fas fa-print"></i></button>' +
+            '<button class="btn-icon zone-card-delete" onclick="event.stopPropagation();deleteZone(' + z.id + ')" aria-label="' + t('delete') + '"><i class="fas fa-trash-alt" style="color:var(--danger)"></i></button>' +
             '<div class="zone-card-color" style="background:' + color + '"></div>' +
             '<div class="zone-card-header">' +
-            '<div class="zone-card-icon" style="background:' + color + '">' + (hasAlert ? '<i class="fas fa-exclamation-triangle"></i>' : '<i class="fas fa-warehouse"></i>') + '</div>' +
+            '<div class="zone-card-icon zone-card-icon-fancy" style="background:' + color + '" aria-label="' + t('zone') + '">' + iconInner + '</div>' +
             '<div class="zone-card-title">' + escapeHtml(z.name) + '</div>' +
             (z.location ? '<div class="zone-card-location"><i class="fas fa-map-marker-alt"></i> ' + escapeHtml(z.location) + '</div>' : '') +
             '</div>' +
@@ -1269,7 +1420,10 @@ async function renderZoneDetail() {
         var html = '<div class="zone-detail">';
         // Zone header
         html += '<div class="zone-detail-header" style="border-color:' + color + '">';
-        html += '<div class="zone-detail-head-icon" style="background:' + color + '"><i class="fas fa-warehouse"></i></div>';
+        var headIcon = zone.image
+            ? '<img src="' + escapeHtml(zone.image) + '" alt="" loading="lazy" decoding="async">'
+            : '<svg class="wh-svg-icon wh-svg-zone" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>';
+        html += '<div class="zone-detail-head-icon zone-card-icon-fancy" style="background:' + color + '" aria-label="' + t('zone') + '">' + headIcon + '</div>';
         html += '<div class="zone-detail-head-info"><h2>' + escapeHtml(zone.name) + '</h2>';
         if (zone.location) html += '<div class="zone-detail-location"><i class="fas fa-map-marker-alt"></i> ' + escapeHtml(zone.location) + '</div>';
         if (zone.description) html += '<div class="zone-detail-desc">' + escapeHtml(zone.description) + '</div>';
@@ -1289,10 +1443,13 @@ async function renderZoneDetail() {
             html += '<div class="zone-areas-grid">';
             areas.forEach(function(area) {
                 var areaItemCount = (area.items || []).length;
-                html += '<div class="zone-area-card" onclick="openAreaItems(' + area.id + ',\'' + escapeHtml(area.name).replace(/'/g, "\\'") + '\')">';
-                html += '<button class="zone-area-edit" onclick="event.stopPropagation();openEditAreaModal(' + area.id + ',\'' + escapeHtml(area.name).replace(/'/g, "\\'") + '\',\'' + escapeHtml(area.description || '').replace(/'/g, "\\'") + '\')" title="Edit"><i class="fas fa-pen"></i></button>';
-                html += '<button class="zone-area-delete" onclick="event.stopPropagation();deleteArea(' + area.id + ')" title="Delete"><i class="fas fa-times"></i></button>';
-                html += '<div class="zone-area-card-icon" style="background:' + color + '"><i class="fas fa-th-large"></i></div>';
+                var areaIcon = area.image
+                    ? '<img src="' + escapeHtml(area.image) + '" alt="" loading="lazy" decoding="async">'
+                    : '<svg class="wh-svg-icon wh-svg-area" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>';
+                html += '<div class="zone-area-card' + (area.image ? ' has-image' : '') + '" onclick="openAreaItems(' + area.id + ',\'' + escapeHtml(area.name).replace(/'/g, "\\'") + '\')" tabindex="0" role="button" aria-label="' + escapeHtml(area.name) + '">';
+                html += '<button class="zone-area-edit" onclick="event.stopPropagation();openEditAreaModal(' + area.id + ',\'' + escapeHtml(area.name).replace(/'/g, "\\'") + '\',\'' + escapeHtml(area.description || '').replace(/'/g, "\\'") + '\')" title="Edit" aria-label="' + t('edit') + '"><i class="fas fa-pen"></i></button>';
+                html += '<button class="zone-area-delete" onclick="event.stopPropagation();deleteArea(' + area.id + ')" title="Delete" aria-label="' + t('delete') + '"><i class="fas fa-times"></i></button>';
+                html += '<div class="zone-area-card-icon zone-card-icon-fancy" style="background:' + color + '">' + areaIcon + '</div>';
                 html += '<div class="zone-area-card-name">' + escapeHtml(area.name) + '</div>';
                 html += '<div class="zone-area-card-count"><i class="fas fa-cube"></i> ' + areaItemCount + ' ' + t('items') + '</div>';
                 html += '</div>';
@@ -1332,11 +1489,11 @@ function openAreaItems(areaId, areaName) {
                 '<button class="area-item-delete" onclick="deleteZoneItem(' + item.id + ')" title="Delete"><i class="fas fa-times"></i></button>' +
                 '<div class="area-item-image" ' + (item.image ? 'onclick="openImageViewer(\'' + escapeHtml(item.image) + '\')" style="cursor:pointer"' : '') + '>' +
                     (item.image
-                        ? '<img src="' + escapeHtml(item.image) + '" onerror="this.parentElement.innerHTML=\'<i class=&quot;fas fa-box&quot;></i>\'">'
-                        : '<i class="fas fa-box"></i>') +
-                    '<label class="area-item-upload-overlay" title="Upload image">' +
+                        ? '<img src="' + escapeHtml(item.image) + '" alt="' + escapeHtml(item.name) + '" loading="lazy" decoding="async" onerror="this.outerHTML=\'<svg class=&quot;wh-svg-icon wh-svg-item&quot; viewBox=&quot;0 0 24 24&quot; aria-hidden=&quot;true&quot;><path d=&quot;M12 2l9 5v10l-9 5-9-5V7zM12 4.2L5 8v8l7 3.8 7-3.8V8z&quot;/></svg>\'">'
+                        : '<svg class="wh-svg-icon wh-svg-item area-item-svg-placeholder" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l9 5v10l-9 5-9-5V7zM12 4.2L5 8v8l7 3.8 7-3.8V8z"/></svg>') +
+                    '<label class="area-item-upload-overlay" title="' + t('chooseImage') + '" aria-label="' + t('chooseImage') + '">' +
                         '<i class="fas fa-camera"></i>' +
-                        '<input type="file" accept="image/*" style="display:none" onchange="uploadZoneItemImg(' + item.id + ',this.files[0])">' +
+                        '<input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" style="display:none" onchange="uploadZoneItemImg(' + item.id + ',this.files[0])">' +
                     '</label>' +
                 '</div>' +
                 '<input type="text" class="area-item-name" value="' + escapeHtml(item.name) + '" onchange="updateZoneItem(' + item.id + ',{name:this.value})">' +
@@ -1362,16 +1519,28 @@ async function addZone() {
     var name = document.getElementById('newZoneName').value.trim();
     if (!name) return;
     try {
-        await API.createZone({
+        var created = await API.createZone({
             name: name,
             location: document.getElementById('newZoneLocation').value.trim(),
             description: document.getElementById('newZoneDesc').value.trim(),
             color: document.getElementById('newZoneColor').value
         });
+        var picked = getPickedFile('newZone');
+        if (picked && created && created.id) {
+            await API.uploadZoneImage(created.id, picked);
+        }
         document.getElementById('addZoneModal').classList.remove('active');
         renderWarehouse();
         showToast(t('added'));
     } catch (e) { showToast(e.message, 'error'); }
+}
+function openAddZoneModal() {
+    document.getElementById('newZoneName').value = '';
+    document.getElementById('newZoneLocation').value = '';
+    document.getElementById('newZoneDesc').value = '';
+    document.getElementById('newZoneColor').value = '#7b2ff7';
+    resetImagePicker('newZone', null);
+    document.getElementById('addZoneModal').classList.add('active');
 }
 function saveNewZone() { addZone(); }
 
@@ -1381,6 +1550,7 @@ function openEditZoneModal() {
     document.getElementById('editZoneLocation').value = currentZoneData.location || '';
     document.getElementById('editZoneDesc').value = currentZoneData.description || '';
     document.getElementById('editZoneColor').value = currentZoneData.color || '#7b2ff7';
+    resetImagePicker('editZone', currentZoneData.image || null);
     document.getElementById('editZoneModal').classList.add('active');
 }
 
@@ -1394,6 +1564,13 @@ async function saveEditZone() {
             description: document.getElementById('editZoneDesc').value.trim(),
             color: document.getElementById('editZoneColor').value
         });
+        var state = _imagePickerState['editZone'] || {};
+        if (state.file) {
+            await API.uploadZoneImage(currentZoneId, state.file);
+        } else if (state.removed) {
+            // Persist removal: writing an empty image string clears the field.
+            await API.updateZone(currentZoneId, { image: '' });
+        }
         document.getElementById('editZoneModal').classList.remove('active');
         renderWarehouse();
         showToast(t('saved') || 'Saved');
@@ -1412,6 +1589,7 @@ async function deleteZone(id) {
 function openAddAreaModal() {
     document.getElementById('newAreaName').value = '';
     document.getElementById('newAreaDesc').value = '';
+    resetImagePicker('newArea', null);
     document.getElementById('addAreaModal').classList.add('active');
 }
 
@@ -1419,7 +1597,11 @@ async function addArea() {
     var name = document.getElementById('newAreaName').value.trim();
     if (!name) return;
     try {
-        await API.createArea(currentZoneId, { name: name, description: document.getElementById('newAreaDesc').value.trim() });
+        var created = await API.createArea(currentZoneId, { name: name, description: document.getElementById('newAreaDesc').value.trim() });
+        var picked = getPickedFile('newArea');
+        if (picked && created && created.id) {
+            await API.uploadAreaImage(created.id, picked);
+        }
         document.getElementById('addAreaModal').classList.remove('active');
         currentZoneData = await API.getZone(currentZoneId);
         await renderZoneDetail();
@@ -1434,6 +1616,8 @@ function openEditAreaModal(areaId, areaName, areaDesc) {
     editingAreaId = areaId;
     document.getElementById('editAreaName').value = areaName || '';
     document.getElementById('editAreaDesc').value = areaDesc || '';
+    var existing = (currentZoneData && currentZoneData.areas) ? (currentZoneData.areas.find(function(a) { return a.id === areaId; }) || {}) : {};
+    resetImagePicker('editArea', existing.image || null);
     document.getElementById('editAreaModal').classList.add('active');
 }
 
@@ -1446,6 +1630,12 @@ async function saveEditArea() {
             name: name,
             description: document.getElementById('editAreaDesc').value.trim()
         });
+        var state = _imagePickerState['editArea'] || {};
+        if (state.file) {
+            await API.uploadAreaImage(editingAreaId, state.file);
+        } else if (state.removed) {
+            await API.updateArea(editingAreaId, { image: '' });
+        }
         document.getElementById('editAreaModal').classList.remove('active');
         currentZoneData = await API.getZone(currentZoneId);
         await renderZoneDetail();
@@ -1484,6 +1674,12 @@ async function addZoneItem() {
 async function addAreaItem() {
     var name = document.getElementById('newAreaItemName').value.trim();
     if (!name) return;
+    var fileInput = document.getElementById('newAreaItemFile');
+    var file = fileInput && fileInput.files && fileInput.files[0];
+    if (file) {
+        if (ALLOWED_IMG_TYPES.indexOf(file.type) === -1) { showToast(t('imageInvalidType'), 'error'); return; }
+        if (file.size > MAX_IMG_BYTES) { showToast(t('imageTooLarge'), 'error'); return; }
+    }
     try {
         var newItem = await API.addZoneItem(currentZoneId, {
             name: name,
@@ -1493,9 +1689,8 @@ async function addAreaItem() {
             area_id: currentAreaId
         });
         // Upload image if selected
-        var fileInput = document.getElementById('newAreaItemFile');
-        if (fileInput && fileInput.files && fileInput.files[0]) {
-            await API.uploadZoneItemImage(newItem.id, fileInput.files[0]);
+        if (file) {
+            await API.uploadZoneItemImage(newItem.id, file);
         }
         currentZoneData = await API.getZone(currentZoneId);
         // Re-open area items modal with refreshed data
@@ -1544,6 +1739,8 @@ async function deleteZoneItem(id) {
 
 async function uploadZoneItemImg(id, file) {
     if (!file) return;
+    if (ALLOWED_IMG_TYPES.indexOf(file.type) === -1) { showToast(t('imageInvalidType'), 'error'); return; }
+    if (file.size > MAX_IMG_BYTES) { showToast(t('imageTooLarge'), 'error'); return; }
     try {
         await API.uploadZoneItemImage(id, file);
         currentZoneData = await API.getZone(currentZoneId);

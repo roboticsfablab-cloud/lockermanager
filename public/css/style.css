@@ -8368,3 +8368,192 @@ button:not(:disabled):active {
     scroll-behavior: auto !important;
   }
 }
+
+/* ======================================================================
+   Warehouse Iconography (zone / area / item)
+   Cohesive SVG system with shared stroke language and per-level accent.
+   - clamp() handles responsive sizing on mobile, tablet, and desktop.
+   - Icons inherit the parent badge background; the SVG fill is white so
+     they read clearly on any color the user picks for the zone.
+   ====================================================================== */
+.wh-svg-icon {
+  width: clamp(18px, 4vw, 24px);
+  height: clamp(18px, 4vw, 24px);
+  fill: currentColor;
+  flex-shrink: 0;
+  transition: transform var(--transition-fast);
+}
+.zone-card-icon-fancy {
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+}
+.zone-card-icon-fancy .wh-svg-icon {
+  width: clamp(22px, 4.5vw, 28px);
+  height: clamp(22px, 4.5vw, 28px);
+}
+.zone-detail-head-icon.zone-card-icon-fancy .wh-svg-icon {
+  width: clamp(26px, 5vw, 32px);
+  height: clamp(26px, 5vw, 32px);
+}
+.zone-card-icon-fancy img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+/* Per-level accent rings — kept consistent across cards and search results. */
+.wh-svg-zone  { color: #fff; }
+.wh-svg-area  { color: #fff; }
+.wh-svg-item  { color: #fff; }
+.wh-svg-alert { color: #fde68a; }
+
+/* In search results the SVG sits on a neutral chip rather than a colored
+   badge, so we tint it with the level color directly. */
+.search-item .wh-svg-icon {
+  width: 18px;
+  height: 18px;
+  padding: 3px;
+  border-radius: 8px;
+  background: rgba(139, 92, 246, 0.12);
+  color: var(--accent);
+  box-sizing: content-box;
+}
+.search-item .wh-svg-zone  { background: rgba(139, 92, 246, 0.14); color: #a78bfa; }
+.search-item .wh-svg-area  { background: rgba(6, 182, 212, 0.14);  color: #22d3ee; }
+.search-item .wh-svg-item  { background: rgba(34, 197, 94, 0.14);  color: #34d399; }
+
+.zone-card:hover .wh-svg-icon,
+.zone-area-card:hover .wh-svg-icon {
+  transform: scale(1.08) rotate(-4deg);
+}
+
+/* Match-level badge inside search results — tells the user which slice of
+   the warehouse hierarchy this row came from. */
+.search-level-badge {
+  display: inline-block;
+  margin-inline-start: 6px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+.search-level-badge.level-warehouse { background: rgba(139, 92, 246, 0.18); color: #a78bfa; }
+.search-level-badge.level-area      { background: rgba(6, 182, 212, 0.18);  color: #22d3ee; }
+.search-level-badge.level-item      { background: rgba(34, 197, 94, 0.18);  color: #34d399; }
+
+/* Zone card with a custom image: subtle outline on the badge so the photo
+   doesn't bleed into the surrounding card. */
+.zone-card-with-image .zone-card-icon-fancy {
+  outline: 2px solid rgba(255, 255, 255, 0.2);
+  outline-offset: -2px;
+}
+
+/* Area card: slightly tighter image rendering. */
+.zone-area-card.has-image .zone-area-card-icon img,
+.zone-area-card .zone-card-icon-fancy img {
+  border-radius: inherit;
+}
+
+/* Keyboard focus rings — WCAG AA contrast on dark and light themes. */
+.zone-card:focus-visible,
+.zone-area-card:focus-visible,
+.area-item-card:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.image-uploader-pick:focus-within,
+.image-uploader-remove:focus-visible,
+.area-item-upload-overlay:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ======================================================================
+   Image Uploader (Add / Edit Zone & Area modals)
+   ====================================================================== */
+.image-uploader {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+  background: var(--bg-input);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+}
+.image-uploader-preview {
+  width: clamp(64px, 18vw, 88px);
+  height: clamp(64px, 18vw, 88px);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.18), rgba(6, 182, 212, 0.10));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 1px solid var(--glass-border);
+}
+.image-uploader-preview .wh-svg-icon {
+  width: clamp(28px, 6vw, 36px);
+  height: clamp(28px, 6vw, 36px);
+  color: var(--accent);
+}
+.image-uploader-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.image-uploader-preview.has-image {
+  border-style: solid;
+}
+.image-uploader-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.image-uploader-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--accent-gradient, linear-gradient(135deg, #7b2ff7, #06b6d4));
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+.image-uploader-pick:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(139, 92, 246, 0.25);
+}
+.image-uploader-pick:active { transform: translateY(0); }
+.image-uploader-pick input { display: none; }
+.image-uploader-remove {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.image-uploader-remove:hover {
+  background: rgba(239, 68, 68, 0.22);
+}
+@media (max-width: 480px) {
+  .image-uploader { flex-direction: column; align-items: stretch; }
+  .image-uploader-preview { width: 100%; height: 140px; }
+}

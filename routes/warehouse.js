@@ -5,15 +5,27 @@ const cloudinary = require('cloudinary').v2;
 const { Readable } = require('stream');
 const router = express.Router();
 
+const ALLOWED_EXT = /\.(jpg|jpeg|png|webp)$/i;
+const ALLOWED_MIME = /^image\/(jpeg|jpg|png|webp)$/i;
+
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
-        const allowed = /\.(jpg|jpeg|png|gif|webp|svg)$/i;
-        if (allowed.test(path.extname(file.originalname))) cb(null, true);
-        else cb(new Error('Only image files are allowed'));
+        if (ALLOWED_EXT.test(path.extname(file.originalname)) && ALLOWED_MIME.test(file.mimetype)) {
+            return cb(null, true);
+        }
+        cb(new Error('Only JPG, JPEG, PNG, or WEBP images are allowed'));
     }
 });
+
+function uploadImage(req, res, next) {
+    upload.single('image')(req, res, (err) => {
+        if (!err) return next();
+        if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'Image exceeds the 5 MB limit' });
+        return res.status(400).json({ error: err.message || 'Upload failed' });
+    });
+}
 
 function uploadToCloudinary(buffer, folder) {
     return new Promise((resolve, reject) => {
@@ -63,11 +75,12 @@ module.exports = function (db) {
     });
 
     router.put('/:id', async (req, res) => {
-        const { name, location, description, color } = req.body;
+        const { name, location, description, color, image } = req.body;
         if (name !== undefined) await db.execute({ sql: 'UPDATE warehouse_zones SET name = ? WHERE id = ?', args: [name.trim(), req.params.id] });
         if (location !== undefined) await db.execute({ sql: 'UPDATE warehouse_zones SET location = ? WHERE id = ?', args: [location, req.params.id] });
         if (description !== undefined) await db.execute({ sql: 'UPDATE warehouse_zones SET description = ? WHERE id = ?', args: [description, req.params.id] });
         if (color !== undefined) await db.execute({ sql: 'UPDATE warehouse_zones SET color = ? WHERE id = ?', args: [color, req.params.id] });
+        if (image !== undefined) await db.execute({ sql: 'UPDATE warehouse_zones SET image = ? WHERE id = ?', args: [image, req.params.id] });
         const updated = await db.execute({ sql: 'SELECT * FROM warehouse_zones WHERE id = ?', args: [req.params.id] });
         res.json(updated.rows[0]);
     });
@@ -80,7 +93,7 @@ module.exports = function (db) {
     });
 
     // Zone image
-    router.post('/:id/image', upload.single('image'), async (req, res) => {
+    router.post('/:id/image', uploadImage, async (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
         const cloudResult = await uploadToCloudinary(req.file.buffer, 'warehouse/zones');
         await db.execute({ sql: 'UPDATE warehouse_zones SET image = ? WHERE id = ?', args: [cloudResult.secure_url, req.params.id] });
@@ -108,9 +121,10 @@ module.exports = function (db) {
     });
 
     router.put('/areas/:id', async (req, res) => {
-        const { name, description } = req.body;
+        const { name, description, image } = req.body;
         if (name !== undefined) await db.execute({ sql: 'UPDATE warehouse_areas SET name = ? WHERE id = ?', args: [name.trim(), req.params.id] });
         if (description !== undefined) await db.execute({ sql: 'UPDATE warehouse_areas SET description = ? WHERE id = ?', args: [description, req.params.id] });
+        if (image !== undefined) await db.execute({ sql: 'UPDATE warehouse_areas SET image = ? WHERE id = ?', args: [image, req.params.id] });
         const updated = await db.execute({ sql: 'SELECT * FROM warehouse_areas WHERE id = ?', args: [req.params.id] });
         res.json(updated.rows[0]);
     });
@@ -122,7 +136,7 @@ module.exports = function (db) {
     });
 
     // Area image
-    router.post('/areas/:id/image', upload.single('image'), async (req, res) => {
+    router.post('/areas/:id/image', uploadImage, async (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
         const cloudResult = await uploadToCloudinary(req.file.buffer, 'warehouse/areas');
         await db.execute({ sql: 'UPDATE warehouse_areas SET image = ? WHERE id = ?', args: [cloudResult.secure_url, req.params.id] });
@@ -159,7 +173,7 @@ module.exports = function (db) {
         res.json({ success: true });
     });
 
-    router.post('/items/:id/image', upload.single('image'), async (req, res) => {
+    router.post('/items/:id/image', uploadImage, async (req, res) => {
         if (!req.file) return res.status(400).json({ error: 'No image uploaded' });
         const cloudResult = await uploadToCloudinary(req.file.buffer, 'warehouse');
         await db.execute({ sql: 'UPDATE warehouse_items SET image = ? WHERE id = ?', args: [cloudResult.secure_url, req.params.id] });

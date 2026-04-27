@@ -917,6 +917,25 @@
                 <label data-i18n="color">Color</label>
                 <input type="color" id="newZoneColor" value="#7b2ff7">
             </div>
+            <div class="form-group">
+                <label data-i18n="imageOptional">Image (optional)</label>
+                <div class="image-uploader" data-uploader="newZone">
+                    <div class="image-uploader-preview" id="newZonePreview">
+                        <svg class="wh-svg-icon wh-svg-zone" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>
+                    </div>
+                    <div class="image-uploader-actions">
+                        <label class="image-uploader-pick">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <span data-i18n="chooseImage">Choose image</span>
+                            <input type="file" id="newZoneImageFile" accept="image/jpeg,image/jpg,image/png,image/webp" onchange="handleImagePick('newZone', this)">
+                        </label>
+                        <button type="button" class="image-uploader-remove" id="newZoneRemoveBtn" onclick="clearImagePick('newZone')" hidden>
+                            <i class="fas fa-trash-alt"></i>
+                            <span data-i18n="removeImage">Remove image</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
         <div class="modal-footer">
             <button class="btn-cancel" onclick="closeModal('addZoneModal')" data-i18n="cancel">Cancel</button>
@@ -954,6 +973,25 @@
                 <label data-i18n="color">Color</label>
                 <input type="color" id="editZoneColor" value="#7b2ff7">
             </div>
+            <div class="form-group">
+                <label data-i18n="imageOptional">Image (optional)</label>
+                <div class="image-uploader" data-uploader="editZone">
+                    <div class="image-uploader-preview" id="editZonePreview">
+                        <svg class="wh-svg-icon wh-svg-zone" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>
+                    </div>
+                    <div class="image-uploader-actions">
+                        <label class="image-uploader-pick">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <span data-i18n="replaceImage">Replace image</span>
+                            <input type="file" id="editZoneImageFile" accept="image/jpeg,image/jpg,image/png,image/webp" onchange="handleImagePick('editZone', this)">
+                        </label>
+                        <button type="button" class="image-uploader-remove" id="editZoneRemoveBtn" onclick="clearImagePick('editZone')" hidden>
+                            <i class="fas fa-trash-alt"></i>
+                            <span data-i18n="removeImage">Remove image</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
         <div class="modal-footer">
             <button class="btn-cancel" onclick="closeModal('editZoneModal')" data-i18n="cancel">Cancel</button>
@@ -983,6 +1021,25 @@
                 <label data-i18n="description">Description</label>
                 <input type="text" id="editAreaDesc" data-i18n-placeholder="description" placeholder="Description">
             </div>
+            <div class="form-group">
+                <label data-i18n="imageOptional">Image (optional)</label>
+                <div class="image-uploader" data-uploader="editArea">
+                    <div class="image-uploader-preview" id="editAreaPreview">
+                        <svg class="wh-svg-icon wh-svg-area" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>
+                    </div>
+                    <div class="image-uploader-actions">
+                        <label class="image-uploader-pick">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <span data-i18n="replaceImage">Replace image</span>
+                            <input type="file" id="editAreaImageFile" accept="image/jpeg,image/jpg,image/png,image/webp" onchange="handleImagePick('editArea', this)">
+                        </label>
+                        <button type="button" class="image-uploader-remove" id="editAreaRemoveBtn" onclick="clearImagePick('editArea')" hidden>
+                            <i class="fas fa-trash-alt"></i>
+                            <span data-i18n="removeImage">Remove image</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
         <div class="modal-footer">
             <button class="btn-cancel" onclick="closeModal('editAreaModal')" data-i18n="cancel">Cancel</button>
@@ -1011,6 +1068,25 @@
             <div class="form-group">
                 <label data-i18n="description">Description</label>
                 <input type="text" id="newAreaDesc" data-i18n-placeholder="description" placeholder="Description">
+            </div>
+            <div class="form-group">
+                <label data-i18n="imageOptional">Image (optional)</label>
+                <div class="image-uploader" data-uploader="newArea">
+                    <div class="image-uploader-preview" id="newAreaPreview">
+                        <svg class="wh-svg-icon wh-svg-area" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>
+                    </div>
+                    <div class="image-uploader-actions">
+                        <label class="image-uploader-pick">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <span data-i18n="chooseImage">Choose image</span>
+                            <input type="file" id="newAreaImageFile" accept="image/jpeg,image/jpg,image/png,image/webp" onchange="handleImagePick('newArea', this)">
+                        </label>
+                        <button type="button" class="image-uploader-remove" id="newAreaRemoveBtn" onclick="clearImagePick('newArea')" hidden>
+                            <i class="fas fa-trash-alt"></i>
+                            <span data-i18n="removeImage">Remove image</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
         <div class="modal-footer">
