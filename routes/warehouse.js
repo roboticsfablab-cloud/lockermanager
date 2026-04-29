@@ -145,7 +145,7 @@ module.exports = function (db) {
     });
 
     // ========== Zone items ==========
-    const VALID_CONDITIONS = new Set(['new', 'used', 'damaged']);
+    const VALID_CONDITIONS = new Set(['new', 'used', 'damaged', 'maintenance']);
     const normalizeCondition = (v) => VALID_CONDITIONS.has(v) ? v : 'new';
 
     router.post('/:id/items', async (req, res) => {

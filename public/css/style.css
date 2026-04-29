@@ -8731,12 +8731,23 @@ button:not(:disabled):active {
 .cond-damaged .condition-badge-icon i {
   animation: cond-pulse 1.6s ease-in-out infinite;
 }
+.cond-maintenance {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+}
+.cond-maintenance .condition-badge-icon i {
+  animation: cond-wrench-tilt 2.2s ease-in-out infinite;
+  transform-origin: 50% 60%;
+}
 .area-item-card.cond-card-damaged {
   outline: 1px solid rgba(239, 68, 68, 0.4);
   outline-offset: -1px;
 }
 .area-item-card.cond-card-used {
   outline: 1px solid rgba(245, 158, 11, 0.32);
+  outline-offset: -1px;
+}
+.area-item-card.cond-card-maintenance {
+  outline: 1px solid rgba(59, 130, 246, 0.4);
   outline-offset: -1px;
 }
 
@@ -8752,8 +8763,16 @@ button:not(:disabled):active {
   0%, 100% { transform: scale(1);    opacity: 1;   }
   50%      { transform: scale(1.18); opacity: 0.7; }
 }
+@keyframes cond-wrench-tilt {
+  0%, 100% { transform: rotate(0deg);   }
+  40%      { transform: rotate(-22deg); }
+  60%      { transform: rotate(10deg);  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .condition-badge, .cond-new .condition-badge-icon i, .cond-damaged .condition-badge-icon i {
+  .condition-badge,
+  .cond-new .condition-badge-icon i,
+  .cond-damaged .condition-badge-icon i,
+  .cond-maintenance .condition-badge-icon i {
     animation: none;
   }
   .zone-card-cover img { transition: none; }
@@ -8863,6 +8882,11 @@ button:not(:disabled):active {
 }
 .cond-chip.active.cond-chip-damaged {
   background: linear-gradient(135deg, #dc2626, #ef4444);
+  color: #fff;
+  border-color: transparent;
+}
+.cond-chip.active.cond-chip-maintenance {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
   color: #fff;
   border-color: transparent;
 }

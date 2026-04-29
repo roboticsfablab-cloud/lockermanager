@@ -138,7 +138,7 @@ const i18n = {
         defaultAreaItems:'Area Items',
         reset:'Reset',
         condition:'Condition',
-        conditionNew:'New', conditionUsed:'Used', conditionDamaged:'Damaged',
+        conditionNew:'New', conditionUsed:'Used', conditionDamaged:'Damaged', conditionMaintenance:'Needs Maintenance',
         filterByCondition:'Filter by condition', allConditions:'All',
         warehouseImageAlt:'Cover image of {name}',
     },
@@ -280,7 +280,7 @@ const i18n = {
         defaultAreaItems:'عناصر المساحة',
         reset:'إعادة تعيين',
         condition:'الحالة',
-        conditionNew:'جديد', conditionUsed:'مستعمل', conditionDamaged:'تالف',
+        conditionNew:'جديد', conditionUsed:'مستعمل', conditionDamaged:'تالف', conditionMaintenance:'بحاجة للصيانة',
         filterByCondition:'تصفية حسب الحالة', allConditions:'الكل',
         warehouseImageAlt:'صورة غلاف {name}',
     }
@@ -409,15 +409,17 @@ function getStatus(qty, minStock) {
     return { cls: 'status-ok', qcls: 'ok', label: t('inStock'), icon: '<i class="fas fa-check-circle"></i>' };
 }
 
-// Item condition: enum that travels with each warehouse_item ('new'|'used'|'damaged').
-// Anything else falls back to 'new' so legacy or malformed values still render cleanly.
-const ITEM_CONDITIONS = ['new', 'used', 'damaged'];
+// Item condition: enum that travels with each warehouse_item
+// ('new'|'used'|'damaged'|'maintenance'). Anything else falls back to 'new'
+// so legacy or malformed values still render cleanly.
+const ITEM_CONDITIONS = ['new', 'used', 'damaged', 'maintenance'];
 function normalizeCondition(c) { return ITEM_CONDITIONS.indexOf(c) === -1 ? 'new' : c; }
 function getConditionMeta(c) {
     var key = normalizeCondition(c);
-    if (key === 'used')     return { key: 'used',     cls: 'cond-used',     label: t('conditionUsed'),     icon: '<i class="fas fa-history"></i>' };
-    if (key === 'damaged')  return { key: 'damaged',  cls: 'cond-damaged',  label: t('conditionDamaged'),  icon: '<i class="fas fa-exclamation-triangle"></i>' };
-    return                         { key: 'new',      cls: 'cond-new',      label: t('conditionNew'),      icon: '<i class="fas fa-star"></i>' };
+    if (key === 'used')         return { key: 'used',        cls: 'cond-used',        label: t('conditionUsed'),        icon: '<i class="fas fa-history"></i>' };
+    if (key === 'damaged')      return { key: 'damaged',     cls: 'cond-damaged',     label: t('conditionDamaged'),     icon: '<i class="fas fa-exclamation-triangle"></i>' };
+    if (key === 'maintenance')  return { key: 'maintenance', cls: 'cond-maintenance', label: t('conditionMaintenance'), icon: '<i class="fas fa-wrench"></i>' };
+    return                             { key: 'new',         cls: 'cond-new',         label: t('conditionNew'),         icon: '<i class="fas fa-star"></i>' };
 }
 function conditionBadgeHtml(c) {
     var m = getConditionMeta(c);
@@ -1651,9 +1653,10 @@ function openAreaItems(areaId, areaName) {
                 '<div class="area-item-condition-row">' +
                     '<label>' + t('condition') + '</label>' +
                     '<select class="area-item-condition-select" onchange="updateZoneItem(' + item.id + ',{condition:this.value});this.closest(\'.area-item-card\').className=\'area-item-card cond-card-\'+this.value;var b=this.closest(\'.area-item-card\').querySelector(\'.condition-badge\');if(b)b.outerHTML=window.__condBadge(this.value);">' +
-                        '<option value="new"'      + (cond === 'new'     ? ' selected' : '') + '>' + t('conditionNew')     + '</option>' +
-                        '<option value="used"'     + (cond === 'used'    ? ' selected' : '') + '>' + t('conditionUsed')    + '</option>' +
-                        '<option value="damaged"'  + (cond === 'damaged' ? ' selected' : '') + '>' + t('conditionDamaged') + '</option>' +
+                        '<option value="new"'         + (cond === 'new'         ? ' selected' : '') + '>' + t('conditionNew')         + '</option>' +
+                        '<option value="used"'        + (cond === 'used'        ? ' selected' : '') + '>' + t('conditionUsed')        + '</option>' +
+                        '<option value="damaged"'     + (cond === 'damaged'     ? ' selected' : '') + '>' + t('conditionDamaged')     + '</option>' +
+                        '<option value="maintenance"' + (cond === 'maintenance' ? ' selected' : '') + '>' + t('conditionMaintenance') + '</option>' +
                     '</select>' +
                 '</div>' +
                 '<div class="area-item-status ' + status.cls + '">' + status.icon + ' ' + status.label + '</div>';
@@ -1671,13 +1674,14 @@ window.__condBadge = function(c) { return conditionBadgeHtml(c); };
 function renderConditionFilterChips(items) {
     var bar = document.getElementById('areaItemsFilter');
     if (!bar) return;
-    var counts = { all: items.length, new: 0, used: 0, damaged: 0 };
+    var counts = { all: items.length, new: 0, used: 0, damaged: 0, maintenance: 0 };
     items.forEach(function(it) { counts[normalizeCondition(it.condition)]++; });
     var chips = [
-        { key: 'all',     label: t('allConditions'),    icon: '<i class="fas fa-layer-group"></i>' },
-        { key: 'new',     label: t('conditionNew'),     icon: '<i class="fas fa-star"></i>' },
-        { key: 'used',    label: t('conditionUsed'),    icon: '<i class="fas fa-history"></i>' },
-        { key: 'damaged', label: t('conditionDamaged'), icon: '<i class="fas fa-exclamation-triangle"></i>' }
+        { key: 'all',         label: t('allConditions'),        icon: '<i class="fas fa-layer-group"></i>' },
+        { key: 'new',         label: t('conditionNew'),         icon: '<i class="fas fa-star"></i>' },
+        { key: 'used',        label: t('conditionUsed'),        icon: '<i class="fas fa-history"></i>' },
+        { key: 'damaged',     label: t('conditionDamaged'),     icon: '<i class="fas fa-exclamation-triangle"></i>' },
+        { key: 'maintenance', label: t('conditionMaintenance'), icon: '<i class="fas fa-wrench"></i>' }
     ];
     bar.innerHTML = '<span class="cond-filter-label">' + escapeHtml(t('filterByCondition')) + ':</span>' +
         chips.map(function(c) {
