@@ -8608,3 +8608,250 @@ button:not(:disabled):active {
 #transferItemModal select {
   width: 100%;
 }
+
+/* ======================================================================
+   Warehouse Zone Cover Image (banner above the card body)
+   ====================================================================== */
+.zone-card-cover {
+  position: relative;
+  /* Negative margins break out of .zone-card's padding so the cover spans
+     edge-to-edge. The card's overflow:hidden + radius keeps corners rounded. */
+  margin: -24px -20px 16px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-bottom: 1px solid var(--glass-border);
+  /* --zone-color is set inline per-card; falls back to the brand purple. */
+  background: linear-gradient(135deg, var(--zone-color, #7b2ff7), rgba(0, 0, 0, 0.25));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* When a real image is present, hide the placeholder glyph; the img sits over it. */
+.zone-card-cover:not(.cover-fallback) .zone-card-cover-glyph {
+  display: none;
+}
+.zone-card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 0;
+  transform: scale(1.04);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+}
+.zone-card-cover img.is-loaded {
+  opacity: 1;
+  transform: scale(1);
+}
+.zone-card:hover .zone-card-cover img {
+  transform: scale(1.06);
+}
+.zone-card-cover-shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.32) 100%);
+}
+.zone-card-cover-glyph {
+  position: absolute;
+  width: 38px !important;
+  height: 38px !important;
+  color: rgba(255, 255, 255, 0.9);
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.35));
+  z-index: 1;
+}
+
+/* When the card has a real cover, the small icon badge sits on top of it slightly,
+   keeping the existing color identity but stepping out of the way visually. */
+.zone-card-with-image .zone-card-header {
+  position: relative;
+}
+.zone-card-with-image .zone-card-icon-fancy {
+  margin-top: -28px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+/* ======================================================================
+   Condition Badge (warehouse item state: new / used / damaged)
+   ====================================================================== */
+.condition-badge {
+  position: absolute;
+  top: 8px;
+  inset-inline-start: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: #fff;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  z-index: 2;
+  animation: condition-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.condition-badge .condition-badge-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.condition-badge .condition-badge-icon i {
+  font-size: 11px;
+}
+.cond-new {
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+}
+.cond-new .condition-badge-icon i {
+  animation: cond-sparkle 2.4s ease-in-out infinite;
+}
+.cond-used {
+  background: linear-gradient(135deg, #d97706, #f59e0b);
+}
+.cond-damaged {
+  background: linear-gradient(135deg, #dc2626, #ef4444);
+}
+.cond-damaged .condition-badge-icon i {
+  animation: cond-pulse 1.6s ease-in-out infinite;
+}
+.area-item-card.cond-card-damaged {
+  outline: 1px solid rgba(239, 68, 68, 0.4);
+  outline-offset: -1px;
+}
+.area-item-card.cond-card-used {
+  outline: 1px solid rgba(245, 158, 11, 0.32);
+  outline-offset: -1px;
+}
+
+@keyframes condition-pop {
+  0%   { opacity: 0; transform: translateY(-4px) scale(0.92); }
+  100% { opacity: 1; transform: translateY(0)    scale(1);    }
+}
+@keyframes cond-sparkle {
+  0%, 100% { transform: rotate(0deg)   scale(1);    }
+  50%      { transform: rotate(18deg)  scale(1.18); }
+}
+@keyframes cond-pulse {
+  0%, 100% { transform: scale(1);    opacity: 1;   }
+  50%      { transform: scale(1.18); opacity: 0.7; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .condition-badge, .cond-new .condition-badge-icon i, .cond-damaged .condition-badge-icon i {
+    animation: none;
+  }
+  .zone-card-cover img { transition: none; }
+}
+
+/* Inline condition selector inside the area-item card */
+.area-item-condition-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.area-item-condition-row label {
+  font-weight: 600;
+  color: var(--text);
+}
+.area-item-condition-select {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.area-item-condition-select:hover,
+.area-item-condition-select:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* Condition selector inside the add-bar — compact width so it slots in next to the other inputs */
+.area-add-condition {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 13px;
+  min-width: 110px;
+}
+
+/* ======================================================================
+   Condition Filter Chips (top of area-items modal body)
+   ====================================================================== */
+.cond-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px 4px;
+}
+.cond-filter-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-inline-end: 4px;
+}
+.cond-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+.cond-chip i { font-size: 11px; }
+.cond-chip:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);
+}
+.cond-chip-count {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  min-width: 18px;
+  text-align: center;
+}
+.cond-chip.active.cond-chip-all {
+  background: var(--accent-gradient);
+  color: #fff;
+  border-color: transparent;
+}
+.cond-chip.active.cond-chip-new {
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+  color: #fff;
+  border-color: transparent;
+}
+.cond-chip.active.cond-chip-used {
+  background: linear-gradient(135deg, #d97706, #f59e0b);
+  color: #fff;
+  border-color: transparent;
+}
+.cond-chip.active.cond-chip-damaged {
+  background: linear-gradient(135deg, #dc2626, #ef4444);
+  color: #fff;
+  border-color: transparent;
+}
+.cond-chip.active .cond-chip-count {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}

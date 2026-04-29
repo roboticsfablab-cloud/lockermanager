@@ -137,6 +137,10 @@ const i18n = {
         printBtn:'Print',
         defaultAreaItems:'Area Items',
         reset:'Reset',
+        condition:'Condition',
+        conditionNew:'New', conditionUsed:'Used', conditionDamaged:'Damaged',
+        filterByCondition:'Filter by condition', allConditions:'All',
+        warehouseImageAlt:'Cover image of {name}',
     },
     ar: {
         appTitle:'FABY Keeper', home:'الرئيسية', lockers:'الخزائن', warehouse:'المستودع',
@@ -275,6 +279,10 @@ const i18n = {
         printBtn:'طباعة',
         defaultAreaItems:'عناصر المساحة',
         reset:'إعادة تعيين',
+        condition:'الحالة',
+        conditionNew:'جديد', conditionUsed:'مستعمل', conditionDamaged:'تالف',
+        filterByCondition:'تصفية حسب الحالة', allConditions:'الكل',
+        warehouseImageAlt:'صورة غلاف {name}',
     }
 };
 
@@ -401,11 +409,31 @@ function getStatus(qty, minStock) {
     return { cls: 'status-ok', qcls: 'ok', label: t('inStock'), icon: '<i class="fas fa-check-circle"></i>' };
 }
 
+// Item condition: enum that travels with each warehouse_item ('new'|'used'|'damaged').
+// Anything else falls back to 'new' so legacy or malformed values still render cleanly.
+const ITEM_CONDITIONS = ['new', 'used', 'damaged'];
+function normalizeCondition(c) { return ITEM_CONDITIONS.indexOf(c) === -1 ? 'new' : c; }
+function getConditionMeta(c) {
+    var key = normalizeCondition(c);
+    if (key === 'used')     return { key: 'used',     cls: 'cond-used',     label: t('conditionUsed'),     icon: '<i class="fas fa-history"></i>' };
+    if (key === 'damaged')  return { key: 'damaged',  cls: 'cond-damaged',  label: t('conditionDamaged'),  icon: '<i class="fas fa-exclamation-triangle"></i>' };
+    return                         { key: 'new',      cls: 'cond-new',      label: t('conditionNew'),      icon: '<i class="fas fa-star"></i>' };
+}
+function conditionBadgeHtml(c) {
+    var m = getConditionMeta(c);
+    return '<span class="condition-badge ' + m.cls + '" role="status" aria-label="' + escapeHtml(t('condition')) + ': ' + escapeHtml(m.label) + '">' +
+        '<span class="condition-badge-icon" aria-hidden="true">' + m.icon + '</span>' +
+        '<span class="condition-badge-label">' + escapeHtml(m.label) + '</span>' +
+        '</span>';
+}
+// Active filter for the area-items modal. 'all' shows everything.
+var currentConditionFilter = 'all';
+
 function closeModal(id) {
     var el = document.getElementById(id);
     if (el) { el.classList.remove('active'); el.classList.remove('open'); }
     if (id === 'lockerModal') { currentLockerId = null; currentLockerData = null; highlightItemId = null; renderGrid(); }
-    if (id === 'areaItemsModal') { currentAreaId = null; }
+    if (id === 'areaItemsModal') { currentAreaId = null; currentConditionFilter = 'all'; }
     if (id === 'covenantModal') { currentCovenantItemId = null; }
 }
 
@@ -1462,13 +1490,37 @@ function renderZoneGrid(zones) {
         card.className = 'zone-card' + (z.image ? ' zone-card-with-image' : '');
         card.style.animationDelay = (idx * 0.08) + 's';
         card.onclick = function() { selectZone(z.id); };
-        var iconInner = z.image
-            ? '<img src="' + escapeHtml(z.image) + '" alt="" loading="lazy" decoding="async" onerror="this.outerHTML=\'<svg class=&quot;wh-svg-icon wh-svg-zone&quot; viewBox=&quot;0 0 24 24&quot; aria-hidden=&quot;true&quot;><path d=&quot;M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z&quot;/></svg>\'">'
-            : (hasAlert
-                ? '<svg class="wh-svg-icon wh-svg-alert" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2L1 21h22L12 2zm0 6l7.53 13H4.47L12 8zm-1 5h2v4h-2zm0 5h2v2h-2z"/></svg>'
-                : '<svg class="wh-svg-icon wh-svg-zone" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>');
+
+        // Cover hero strip — when an image is uploaded, show it as a proper banner
+        // across the top of the card. Without an image, render a tinted placeholder
+        // using the zone's accent color so cards still feel composed and on-brand.
+        // The accent color flows in via --zone-color so the no-image fallback and
+        // the on-error fallback share one CSS-driven gradient.
+        var coverAlt = (t('warehouseImageAlt') || 'Cover image of {name}').replace('{name}', escapeHtml(z.name));
+        var coverStyle = ' style="--zone-color:' + color + '"';
+        var fallbackGlyph = '<svg class="wh-svg-icon wh-svg-zone zone-card-cover-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>';
+        var cover = z.image
+            ? '<div class="zone-card-cover"' + coverStyle + '>' +
+                '<img src="' + escapeHtml(z.image) + '" alt="' + coverAlt + '" loading="lazy" decoding="async"' +
+                ' onload="this.classList.add(\'is-loaded\')"' +
+                ' onerror="this.parentNode.classList.add(\'cover-fallback\');this.remove();">' +
+                fallbackGlyph +
+                '<div class="zone-card-cover-shade"></div>' +
+                '</div>'
+            : '<div class="zone-card-cover cover-fallback"' + coverStyle + ' aria-hidden="true">' +
+                fallbackGlyph +
+                '<div class="zone-card-cover-shade"></div>' +
+                '</div>';
+
+        // Small badge icon stays for color/level consistency. When the cover already
+        // shows the photo, the badge falls back to the zone glyph (or alert chevron).
+        var iconInner = hasAlert
+            ? '<svg class="wh-svg-icon wh-svg-alert" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2L1 21h22L12 2zm0 6l7.53 13H4.47L12 8zm-1 5h2v4h-2zm0 5h2v2h-2z"/></svg>'
+            : '<svg class="wh-svg-icon wh-svg-zone" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>';
+
         card.innerHTML = '<button class="btn-icon zone-card-print" onclick="event.stopPropagation();printZone(' + z.id + ')" title="' + t('print') + '" aria-label="' + t('print') + '"><i class="fas fa-print"></i></button>' +
             '<button class="btn-icon zone-card-delete" onclick="event.stopPropagation();deleteZone(' + z.id + ')" aria-label="' + t('delete') + '"><i class="fas fa-trash-alt" style="color:var(--danger)"></i></button>' +
+            cover +
             '<div class="zone-card-color" style="background:' + color + '"></div>' +
             '<div class="zone-card-header">' +
             '<div class="zone-card-icon zone-card-icon-fancy" style="background:' + color + '" aria-label="' + t('zone') + '">' + iconInner + '</div>' +
@@ -1555,16 +1607,23 @@ function openAreaItems(areaId, areaName) {
         if (area) areaItems = area.items || [];
     }
 
-    document.getElementById('areaModalCount').textContent = areaItems.length;
+    renderConditionFilterChips(areaItems);
+
+    var visibleItems = currentConditionFilter === 'all'
+        ? areaItems
+        : areaItems.filter(function(it) { return normalizeCondition(it.condition) === currentConditionFilter; });
+
+    document.getElementById('areaModalCount').textContent = visibleItems.length;
     var grid = document.getElementById('areaItemsBody');
     grid.innerHTML = '';
-    if (areaItems.length === 0) {
+    if (visibleItems.length === 0) {
         grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><i class="fas fa-box-open"></i><p>' + t('noItems') + '</p></div>';
     } else {
-        areaItems.forEach(function(item) {
+        visibleItems.forEach(function(item) {
             var q = Number(item.qty), ms = Number(item.min_stock), status = getStatus(q, ms);
+            var cond = normalizeCondition(item.condition);
             var card = document.createElement('div');
-            card.className = 'area-item-card';
+            card.className = 'area-item-card cond-card-' + cond;
             card.innerHTML =
                 '<button class="area-item-transfer" onclick="openTransferItemModal(' + item.id + ',\'' + escapeHtml(item.name).replace(/\\/g,"\\\\").replace(/\'/g,"\\\'") + '\')" title="' + t('transferItem') + '" aria-label="' + t('transferItem') + '"><i class="fas fa-exchange-alt"></i></button>' +
                 '<button class="area-item-delete" onclick="deleteZoneItem(' + item.id + ')" title="' + t('delete') + '" aria-label="' + t('delete') + '"><i class="fas fa-times"></i></button>' +
@@ -1576,6 +1635,7 @@ function openAreaItems(areaId, areaName) {
                         '<i class="fas fa-camera"></i>' +
                         '<input type="file" accept="image/jpeg,image/jpg,image/png,image/webp" style="display:none" onchange="uploadZoneItemImg(' + item.id + ',this.files[0])">' +
                     '</label>' +
+                    conditionBadgeHtml(cond) +
                 '</div>' +
                 '<input type="text" class="area-item-name" value="' + escapeHtml(item.name) + '" onchange="updateZoneItem(' + item.id + ',{name:this.value})">' +
                 '<input type="text" class="area-item-desc" placeholder="' + t('descriptionPlaceholder') + '" value="' + escapeHtml(item.description || '') + '" onchange="updateZoneItem(' + item.id + ',{description:this.value})">' +
@@ -1588,12 +1648,54 @@ function openAreaItems(areaId, areaName) {
                     '<label>' + t('minStock') + '</label>' +
                     '<input type="number" min="0" value="' + ms + '" onchange="updateZoneItem(' + item.id + ',{min_stock:parseInt(this.value)})">' +
                 '</div>' +
+                '<div class="area-item-condition-row">' +
+                    '<label>' + t('condition') + '</label>' +
+                    '<select class="area-item-condition-select" onchange="updateZoneItem(' + item.id + ',{condition:this.value});this.closest(\'.area-item-card\').className=\'area-item-card cond-card-\'+this.value;var b=this.closest(\'.area-item-card\').querySelector(\'.condition-badge\');if(b)b.outerHTML=window.__condBadge(this.value);">' +
+                        '<option value="new"'      + (cond === 'new'     ? ' selected' : '') + '>' + t('conditionNew')     + '</option>' +
+                        '<option value="used"'     + (cond === 'used'    ? ' selected' : '') + '>' + t('conditionUsed')    + '</option>' +
+                        '<option value="damaged"'  + (cond === 'damaged' ? ' selected' : '') + '>' + t('conditionDamaged') + '</option>' +
+                    '</select>' +
+                '</div>' +
                 '<div class="area-item-status ' + status.cls + '">' + status.icon + ' ' + status.label + '</div>';
             grid.appendChild(card);
         });
     }
 
     document.getElementById('areaItemsModal').classList.add('active');
+}
+
+// Wired into the inline <select> onchange so a condition flip can refresh the badge
+// without re-rendering the whole grid (keeps focus / scroll where the user left them).
+window.__condBadge = function(c) { return conditionBadgeHtml(c); };
+
+function renderConditionFilterChips(items) {
+    var bar = document.getElementById('areaItemsFilter');
+    if (!bar) return;
+    var counts = { all: items.length, new: 0, used: 0, damaged: 0 };
+    items.forEach(function(it) { counts[normalizeCondition(it.condition)]++; });
+    var chips = [
+        { key: 'all',     label: t('allConditions'),    icon: '<i class="fas fa-layer-group"></i>' },
+        { key: 'new',     label: t('conditionNew'),     icon: '<i class="fas fa-star"></i>' },
+        { key: 'used',    label: t('conditionUsed'),    icon: '<i class="fas fa-history"></i>' },
+        { key: 'damaged', label: t('conditionDamaged'), icon: '<i class="fas fa-exclamation-triangle"></i>' }
+    ];
+    bar.innerHTML = '<span class="cond-filter-label">' + escapeHtml(t('filterByCondition')) + ':</span>' +
+        chips.map(function(c) {
+            return '<button type="button" class="cond-chip cond-chip-' + c.key + (currentConditionFilter === c.key ? ' active' : '') + '"' +
+                ' aria-pressed="' + (currentConditionFilter === c.key ? 'true' : 'false') + '"' +
+                ' onclick="setConditionFilter(\'' + c.key + '\')">' +
+                c.icon + ' <span>' + escapeHtml(c.label) + '</span>' +
+                ' <span class="cond-chip-count">' + counts[c.key] + '</span></button>';
+        }).join('');
+}
+
+function setConditionFilter(key) {
+    if (ITEM_CONDITIONS.indexOf(key) === -1 && key !== 'all') return;
+    currentConditionFilter = key;
+    if (currentAreaId && currentZoneData && currentZoneData.areas) {
+        var area = currentZoneData.areas.find(function(a) { return a.id === currentAreaId; });
+        if (area) openAreaItems(currentAreaId, area.name);
+    }
 }
 
 async function addZone() {
@@ -1739,11 +1841,13 @@ async function addZoneItem() {
     var name = nameEl.value.trim();
     if (!name) return;
     try {
+        var condEl = document.getElementById('newZoneItemCondition');
         await API.addZoneItem(currentZoneId, {
             name: name,
             qty: parseInt(document.getElementById('newZoneItemQty').value) || 0,
             min_stock: parseInt(document.getElementById('newZoneItemMin').value) || 5,
             description: document.getElementById('newZoneItemDesc').value.trim(),
+            condition: condEl ? normalizeCondition(condEl.value) : 'new',
             area_id: null
         });
         currentZoneData = await API.getZone(currentZoneId);
@@ -1762,11 +1866,13 @@ async function addAreaItem() {
         if (file.size > MAX_IMG_BYTES) { showToast(t('imageTooLarge'), 'error'); return; }
     }
     try {
+        var conditionEl = document.getElementById('newAreaItemCondition');
         var newItem = await API.addZoneItem(currentZoneId, {
             name: name,
             qty: parseInt(document.getElementById('newAreaItemQty').value) || 0,
             min_stock: parseInt(document.getElementById('newAreaItemMin').value) || 5,
             description: document.getElementById('newAreaItemDesc').value.trim(),
+            condition: conditionEl ? normalizeCondition(conditionEl.value) : 'new',
             area_id: currentAreaId
         });
         // Upload image if selected
@@ -1783,15 +1889,23 @@ async function addAreaItem() {
         document.getElementById('newAreaItemQty').value = '1';
         document.getElementById('newAreaItemMin').value = '0';
         document.getElementById('newAreaItemDesc').value = '';
+        if (conditionEl) conditionEl.value = 'new';
         if (fileInput) fileInput.value = '';
     } catch (e) { showToast(e.message, 'error'); }
 }
 
 async function updateZoneItem(id, data) {
-    // Optimistic: patch local state, skip the heavy refetch + re-render
-    if (currentZoneData && Array.isArray(currentZoneData.items)) {
-        var it = currentZoneData.items.find(function(x){ return x.id === id; });
-        if (it) Object.assign(it, data);
+    // Optimistic: patch local state, skip the heavy refetch + re-render.
+    // Items can live at zone level (currentZoneData.items) OR under an area
+    // (currentZoneData.areas[].items) — patch wherever we find it so subsequent
+    // filters/badge updates see fresh values without a round-trip.
+    if (currentZoneData) {
+        var arrays = [currentZoneData.items].concat((currentZoneData.areas || []).map(function(a){ return a.items; }));
+        arrays.forEach(function(list) {
+            if (!Array.isArray(list)) return;
+            var it = list.find(function(x){ return x.id === id; });
+            if (it) Object.assign(it, data);
+        });
     }
     try { await API.updateZoneItem(id, data); }
     catch (e) {
