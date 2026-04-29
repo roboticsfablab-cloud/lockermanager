@@ -1283,6 +1283,7 @@
             </div>
         </div>
         <div class="modal-body area-items-body">
+            <div class="cond-filter-bar" id="areaItemsFilter" role="toolbar" aria-label="Filter by condition" data-i18n-aria="filterByCondition"></div>
             <div class="area-items-grid" id="areaItemsBody"></div>
         </div>
         <div class="modal-footer area-add-bar">
@@ -1291,6 +1292,11 @@
                 <input type="number" id="newAreaItemQty" placeholder="Qty" data-i18n-placeholder="qty" min="0" value="1" title="Quantity" data-i18n-title="quantity">
                 <input type="number" id="newAreaItemMin" placeholder="Min" data-i18n-placeholder="min" min="0" value="0" title="Min stock" data-i18n-title="minStockTitle">
                 <input type="text" id="newAreaItemDesc" data-i18n-placeholder="descriptionPlaceholder" placeholder="Description (optional)">
+                <select id="newAreaItemCondition" class="area-add-condition" title="Condition" data-i18n-title="condition" aria-label="Condition" data-i18n-aria="condition">
+                    <option value="new" data-i18n="conditionNew">New</option>
+                    <option value="used" data-i18n="conditionUsed">Used</option>
+                    <option value="damaged" data-i18n="conditionDamaged">Damaged</option>
+                </select>
                 <label class="area-image-upload" title="Upload image" data-i18n-title="uploadImage">
                     <i class="fas fa-camera"></i>
                     <input type="file" id="newAreaItemFile" accept="image/*">

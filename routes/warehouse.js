@@ -145,25 +145,29 @@ module.exports = function (db) {
     });
 
     // ========== Zone items ==========
+    const VALID_CONDITIONS = new Set(['new', 'used', 'damaged']);
+    const normalizeCondition = (v) => VALID_CONDITIONS.has(v) ? v : 'new';
+
     router.post('/:id/items', async (req, res) => {
-        const { name, qty, description, min_stock, image, area_id } = req.body;
+        const { name, qty, description, min_stock, image, area_id, condition } = req.body;
         if (!name || !name.trim()) return res.status(400).json({ error: 'Item name required' });
         const result = await db.execute({
-            sql: 'INSERT INTO warehouse_items (zone_id, area_id, name, qty, min_stock, image, description) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            args: [req.params.id, area_id || null, name.trim(), Math.max(0, parseInt(qty) || 0), parseInt(min_stock) || 5, image || '', description || '']
+            sql: 'INSERT INTO warehouse_items (zone_id, area_id, name, qty, min_stock, image, description, condition) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            args: [req.params.id, area_id || null, name.trim(), Math.max(0, parseInt(qty) || 0), parseInt(min_stock) || 5, image || '', description || '', normalizeCondition(condition)]
         });
         const item = await db.execute({ sql: 'SELECT * FROM warehouse_items WHERE id = ?', args: [Number(result.lastInsertRowid)] });
         res.status(201).json(item.rows[0]);
     });
 
     router.put('/items/:id', async (req, res) => {
-        const { name, qty, description, min_stock, image, area_id } = req.body;
+        const { name, qty, description, min_stock, image, area_id, condition } = req.body;
         if (name !== undefined) await db.execute({ sql: 'UPDATE warehouse_items SET name = ? WHERE id = ?', args: [name.trim(), req.params.id] });
         if (qty !== undefined) await db.execute({ sql: 'UPDATE warehouse_items SET qty = ? WHERE id = ?', args: [Math.max(0, parseInt(qty)), req.params.id] });
         if (description !== undefined) await db.execute({ sql: 'UPDATE warehouse_items SET description = ? WHERE id = ?', args: [description, req.params.id] });
         if (min_stock !== undefined) await db.execute({ sql: 'UPDATE warehouse_items SET min_stock = ? WHERE id = ?', args: [Math.max(0, parseInt(min_stock)), req.params.id] });
         if (image !== undefined) await db.execute({ sql: 'UPDATE warehouse_items SET image = ? WHERE id = ?', args: [image, req.params.id] });
         if (area_id !== undefined) await db.execute({ sql: 'UPDATE warehouse_items SET area_id = ? WHERE id = ?', args: [area_id, req.params.id] });
+        if (condition !== undefined) await db.execute({ sql: 'UPDATE warehouse_items SET condition = ? WHERE id = ?', args: [normalizeCondition(condition), req.params.id] });
         const updated = await db.execute({ sql: 'SELECT * FROM warehouse_items WHERE id = ?', args: [req.params.id] });
         res.json(updated.rows[0]);
     });

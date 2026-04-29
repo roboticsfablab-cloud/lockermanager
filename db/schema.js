@@ -7,7 +7,7 @@ const client = createClient({
 
 let initialized = false;
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 async function ensureTables() {
     if (initialized) return;
@@ -65,6 +65,7 @@ async function ensureTables() {
             min_stock INTEGER NOT NULL DEFAULT 5,
             image TEXT DEFAULT '',
             description TEXT DEFAULT '',
+            condition TEXT NOT NULL DEFAULT 'new',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (zone_id) REFERENCES warehouse_zones(id) ON DELETE CASCADE
         )`,
@@ -171,6 +172,7 @@ async function ensureTables() {
         `ALTER TABLE warehouse_zones ADD COLUMN color TEXT DEFAULT '#7b2ff7'`,
         `ALTER TABLE warehouse_zones ADD COLUMN image TEXT DEFAULT ''`,
         `ALTER TABLE warehouse_items ADD COLUMN area_id INTEGER DEFAULT NULL`,
+        `ALTER TABLE warehouse_items ADD COLUMN condition TEXT NOT NULL DEFAULT 'new'`,
         `ALTER TABLE warehouse_areas ADD COLUMN image TEXT DEFAULT ''`,
         `ALTER TABLE departments ADD COLUMN description TEXT DEFAULT ''`,
         `ALTER TABLE departments ADD COLUMN image TEXT DEFAULT ''`,
@@ -242,6 +244,7 @@ async function ensureTables() {
         `CREATE INDEX IF NOT EXISTS idx_items_locker_id               ON items(locker_id)`,
         `CREATE INDEX IF NOT EXISTS idx_warehouse_items_zone_id       ON warehouse_items(zone_id)`,
         `CREATE INDEX IF NOT EXISTS idx_warehouse_items_area_id       ON warehouse_items(area_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_warehouse_items_condition     ON warehouse_items(condition)`,
         `CREATE INDEX IF NOT EXISTS idx_warehouse_areas_zone_id       ON warehouse_areas(zone_id)`,
         `CREATE INDEX IF NOT EXISTS idx_department_lockers_locker_id  ON department_lockers(locker_id)`,
         `CREATE INDEX IF NOT EXISTS idx_employees_department_id       ON employees(department_id)`,
