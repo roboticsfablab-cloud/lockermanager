@@ -8137,6 +8137,19 @@ textarea.input {
 }
 [dir="rtl"] .zone-card-print { right: auto; left: 46px; }
 
+/* The delete button on a zone card was never given explicit coordinates,
+   so it dropped into normal flow and got clipped by the card's top edge
+   / cover banner. Pin it absolutely next to the print button — and mirror
+   it for RTL so both icons cluster on the same side as the print. */
+.zone-card-delete {
+    position: absolute;
+    top: 10px;
+    right: 6px;
+    width: 30px; height: 30px;
+    border-radius: 8px;
+}
+[dir="rtl"] .zone-card-delete { right: auto; left: 6px; }
+
 /* ============================================================
    VISUAL REFRESH — polish layer (additive only)
    ============================================================ */
