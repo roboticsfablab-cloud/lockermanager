@@ -145,7 +145,9 @@ module.exports = function (db) {
     });
 
     // ========== Zone items ==========
-    const VALID_CONDITIONS = new Set(['new', 'used', 'damaged', 'maintenance']);
+    // 'repairable' was added in v5 alongside 'maintenance' so the warehouse and
+    // departments modules share the same condition vocabulary.
+    const VALID_CONDITIONS = new Set(['new', 'used', 'damaged', 'maintenance', 'repairable']);
     const normalizeCondition = (v) => VALID_CONDITIONS.has(v) ? v : 'new';
 
     router.post('/:id/items', async (req, res) => {
@@ -216,6 +218,116 @@ module.exports = function (db) {
         await db.execute({ sql: 'UPDATE warehouse_items SET image = ? WHERE id = ?', args: [cloudResult.secure_url, req.params.id] });
         const updated = await db.execute({ sql: 'SELECT * FROM warehouse_items WHERE id = ?', args: [req.params.id] });
         res.json(updated.rows[0]);
+    });
+
+    // ========== Bulk transfer (zone or area as source) ==========
+    // Both endpoints accept the same destination shape so the client can reuse one dialog:
+    //   { destination_type: 'department', department_id }
+    //   { destination_type: 'warehouse',  zone_id, area_id? }   // area_id optional
+    // The source's items are MOVED (not copied). Quantities, names, descriptions,
+    // images, and conditions are preserved verbatim. We use db.batch with mode='write'
+    // so the whole move runs as a single libsql transaction — partial moves are
+    // impossible. Idempotency: if the source has no items, we return moved=0
+    // without erroring, so retries after a successful move are no-ops.
+    async function performBulkTransfer({ sourceType, sourceId, dest }) {
+        if (sourceType !== 'zone' && sourceType !== 'area') throw new Error('Invalid source type');
+        const sourceIdNum = parseInt(sourceId);
+        if (!sourceIdNum) throw new Error('Source id required');
+
+        // Resolve the items belonging to the source
+        const itemsResult = sourceType === 'zone'
+            ? await db.execute({ sql: 'SELECT * FROM warehouse_items WHERE zone_id = ?', args: [sourceIdNum] })
+            : await db.execute({ sql: 'SELECT * FROM warehouse_items WHERE area_id = ?', args: [sourceIdNum] });
+        const items = itemsResult.rows;
+
+        // Validate the destination once before we touch anything.
+        if (!dest || !dest.destination_type) throw new Error('Destination required');
+
+        if (dest.destination_type === 'department') {
+            const deptId = parseInt(dest.department_id);
+            if (!deptId) throw new Error('Target department required');
+            const depCheck = await db.execute({ sql: 'SELECT id FROM departments WHERE id = ?', args: [deptId] });
+            if (depCheck.rows.length === 0) throw new Error('Target department not found');
+
+            if (items.length === 0) return { moved: 0, destination: 'department', destination_id: deptId };
+
+            // Move each warehouse item into department_items as a flat row, then
+            // delete the original. We do it inside one batch so there's no window
+            // where the items could appear in both places (or vanish from both).
+            const stmts = [];
+            for (const it of items) {
+                stmts.push({
+                    sql: `INSERT INTO department_items (department_id, name, description, qty, image, condition)
+                          VALUES (?, ?, ?, ?, ?, ?)`,
+                    args: [deptId, it.name, it.description || '', Number(it.qty) || 0, it.image || '', it.condition || 'new']
+                });
+            }
+            // After inserts, remove the source rows so the move is exclusive.
+            stmts.push(sourceType === 'zone'
+                ? { sql: 'DELETE FROM warehouse_items WHERE zone_id = ?', args: [sourceIdNum] }
+                : { sql: 'DELETE FROM warehouse_items WHERE area_id = ?', args: [sourceIdNum] });
+            await db.batch(stmts, 'write');
+
+            return { moved: items.length, destination: 'department', destination_id: deptId };
+        }
+
+        if (dest.destination_type === 'warehouse') {
+            const targetZoneId = parseInt(dest.zone_id);
+            if (!targetZoneId) throw new Error('Target zone required');
+            const zoneCheck = await db.execute({ sql: 'SELECT id FROM warehouse_zones WHERE id = ?', args: [targetZoneId] });
+            if (zoneCheck.rows.length === 0) throw new Error('Target zone not found');
+
+            let targetAreaId = null;
+            if (dest.area_id !== null && dest.area_id !== undefined && dest.area_id !== '') {
+                targetAreaId = parseInt(dest.area_id);
+                const areaCheck = await db.execute({ sql: 'SELECT id, zone_id FROM warehouse_areas WHERE id = ?', args: [targetAreaId] });
+                if (areaCheck.rows.length === 0) throw new Error('Target area not found');
+                if (Number(areaCheck.rows[0].zone_id) !== targetZoneId) {
+                    throw new Error('Target area does not belong to the target zone');
+                }
+            }
+
+            // No-op when source == destination so retries don't churn the DB.
+            if (sourceType === 'zone' && sourceIdNum === targetZoneId && targetAreaId === null) {
+                return { moved: 0, destination: 'warehouse', zone_id: targetZoneId, area_id: null };
+            }
+            if (sourceType === 'area' && targetAreaId !== null && sourceIdNum === targetAreaId) {
+                return { moved: 0, destination: 'warehouse', zone_id: targetZoneId, area_id: targetAreaId };
+            }
+
+            if (items.length === 0) {
+                return { moved: 0, destination: 'warehouse', zone_id: targetZoneId, area_id: targetAreaId };
+            }
+
+            // Reparent the rows in place — IDs and history are preserved, which
+            // matters for any covenant_history references pointing at them.
+            const sql = sourceType === 'zone'
+                ? 'UPDATE warehouse_items SET zone_id = ?, area_id = ? WHERE zone_id = ?'
+                : 'UPDATE warehouse_items SET zone_id = ?, area_id = ? WHERE area_id = ?';
+            await db.execute({ sql, args: [targetZoneId, targetAreaId, sourceIdNum] });
+
+            return { moved: items.length, destination: 'warehouse', zone_id: targetZoneId, area_id: targetAreaId };
+        }
+
+        throw new Error('Unknown destination type');
+    }
+
+    router.post('/zones/:id/transfer', async (req, res) => {
+        try {
+            const result = await performBulkTransfer({ sourceType: 'zone', sourceId: req.params.id, dest: req.body });
+            res.json({ success: true, source_type: 'zone', source_id: Number(req.params.id), ...result });
+        } catch (e) {
+            res.status(400).json({ error: e.message });
+        }
+    });
+
+    router.post('/areas/:id/transfer', async (req, res) => {
+        try {
+            const result = await performBulkTransfer({ sourceType: 'area', sourceId: req.params.id, dest: req.body });
+            res.json({ success: true, source_type: 'area', source_id: Number(req.params.id), ...result });
+        } catch (e) {
+            res.status(400).json({ error: e.message });
+        }
     });
 
     return router;
