@@ -7,7 +7,7 @@ const client = createClient({
 
 let initialized = false;
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 async function ensureTables() {
     if (initialized) return;
@@ -102,6 +102,7 @@ async function ensureTables() {
             image TEXT DEFAULT '',
             receipt_date TEXT DEFAULT '',
             purpose TEXT DEFAULT '',
+            condition TEXT NOT NULL DEFAULT 'new',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE,
             FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL
@@ -147,6 +148,7 @@ async function ensureTables() {
             image TEXT DEFAULT '',
             receipt_date TEXT DEFAULT '',
             purpose TEXT DEFAULT '',
+            condition TEXT NOT NULL DEFAULT 'new',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE,
             FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL
@@ -189,6 +191,9 @@ async function ensureTables() {
         `ALTER TABLE covenant_history ADD COLUMN entity_type TEXT NOT NULL DEFAULT 'item'`,
         `ALTER TABLE covenant_history ADD COLUMN to_department_id INTEGER DEFAULT NULL`,
         `ALTER TABLE covenant_history ADD COLUMN from_department_id INTEGER DEFAULT NULL`,
+        // Schema v5: condition on department-level items + equipment, mirroring warehouse_items.
+        `ALTER TABLE department_items ADD COLUMN condition TEXT NOT NULL DEFAULT 'new'`,
+        `ALTER TABLE department_equipment ADD COLUMN condition TEXT NOT NULL DEFAULT 'new'`,
     ];
     for (const sql of migrations) {
         try { await client.execute(sql); } catch (e) { /* column exists */ }
@@ -252,6 +257,8 @@ async function ensureTables() {
         `CREATE INDEX IF NOT EXISTS idx_department_items_employee     ON department_items(employee_id)`,
         `CREATE INDEX IF NOT EXISTS idx_department_equipment_dept     ON department_equipment(department_id)`,
         `CREATE INDEX IF NOT EXISTS idx_department_equipment_employee ON department_equipment(employee_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_department_items_condition     ON department_items(condition)`,
+        `CREATE INDEX IF NOT EXISTS idx_department_equipment_condition ON department_equipment(condition)`,
         `CREATE INDEX IF NOT EXISTS idx_covenant_item_entity          ON covenant_history(item_id, entity_type)`,
         `CREATE INDEX IF NOT EXISTS idx_covenant_to_employee          ON covenant_history(to_employee_id)`,
         `CREATE INDEX IF NOT EXISTS idx_covenant_from_employee        ON covenant_history(from_employee_id)`,
