@@ -8738,6 +8738,24 @@ button:not(:disabled):active {
   animation: cond-wrench-tilt 2.2s ease-in-out infinite;
   transform-origin: 50% 60%;
 }
+/* Repairable — distinct teal so it doesn't collide with the maintenance blue. */
+.cond-repairable {
+  background: linear-gradient(135deg, #0e7490, #06b6d4);
+}
+.cond-repairable .condition-badge-icon i {
+  animation: cond-tools-bob 2.4s ease-in-out infinite;
+  transform-origin: 50% 60%;
+}
+.dept-item-card-v2.cond-card-repairable,
+.equip-card.cond-card-repairable,
+.area-item-card.cond-card-repairable {
+  outline: 1px solid rgba(14, 165, 233, 0.4);
+  outline-offset: -1px;
+}
+@keyframes cond-tools-bob {
+  0%, 100% { transform: translateY(0)    rotate(0deg);   }
+  50%      { transform: translateY(-1px) rotate(-8deg);  }
+}
 .area-item-card.cond-card-damaged {
   outline: 1px solid rgba(239, 68, 68, 0.4);
   outline-offset: -1px;
@@ -8887,6 +8905,11 @@ button:not(:disabled):active {
 }
 .cond-chip.active.cond-chip-maintenance {
   background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #fff;
+  border-color: transparent;
+}
+.cond-chip.active.cond-chip-repairable {
+  background: linear-gradient(135deg, #0e7490, #06b6d4);
   color: #fff;
   border-color: transparent;
 }
@@ -9064,4 +9087,233 @@ button:not(:disabled):active {
   .area-item-delete:hover .fa-times {
     animation: none;
   }
+}
+
+/* ======================================================================
+   Department card actions group (edit / reassign / delete)
+   Hidden at rest, fade + slide in on card hover or keyboard focus.
+   ====================================================================== */
+.dept-card { position: relative; }
+.dept-card-actions {
+  position: absolute;
+  top: 8px;
+  inset-inline-end: 8px;
+  display: flex;
+  gap: 6px;
+  z-index: 4;
+  opacity: 0;
+  transform: translateY(-4px) scale(0.96);
+  transition: opacity 220ms ease-out, transform 220ms ease-out;
+  pointer-events: none;
+}
+.dept-card:hover .dept-card-actions,
+.dept-card:focus-within .dept-card-actions {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+.dept-card-action {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  transition: transform 180ms ease, background 180ms ease, color 180ms ease;
+}
+.dept-card-action i { font-size: 12px; }
+.dept-card-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.dept-card-action-edit:hover { background: var(--accent); transform: rotate(-6deg) scale(1.05); }
+.dept-card-action-reassign:hover { background: #2563eb; transform: scale(1.06); }
+.dept-card-action-delete:hover { background: var(--danger); animation: dept-action-shake 0.4s ease-in-out; }
+@keyframes dept-action-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+@media (hover: none) {
+  /* Touch devices: no hover, so keep the actions visible. */
+  .dept-card-actions { opacity: 1; transform: none; pointer-events: auto; }
+}
+
+/* Department detail header actions */
+.dept-detail-header { position: relative; }
+.dept-header-actions {
+  position: absolute;
+  top: 12px;
+  inset-inline-end: 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 5;
+}
+.dept-header-action {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: transform 180ms ease, background 180ms ease;
+}
+.dept-header-action:hover { background: var(--accent); transform: translateY(-1px); }
+.dept-header-action-delete:hover { background: var(--danger); }
+.dept-header-action-reassign:hover { background: #2563eb; }
+
+/* Transfer dialog destination pills */
+.transfer-pill-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.transfer-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: var(--bg-input);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  transition: transform 180ms ease, background 180ms ease, color 180ms ease, border-color 180ms ease;
+}
+.transfer-pill i { font-size: 12px; }
+.transfer-pill:hover { transform: translateY(-1px); border-color: var(--accent); }
+.transfer-pill.active {
+  background: var(--accent-gradient);
+  color: #fff;
+  border-color: transparent;
+}
+.transfer-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.transfer-swap-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(34, 211, 238, 0.08);
+  color: var(--text);
+  font-size: 13px;
+}
+.transfer-swap-preview i { color: #06b6d4; }
+
+/* Reassign manager list */
+.reassign-current {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--bg-input);
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+.reassign-current-label { color: var(--text-muted); }
+.reassign-emp-list {
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.reassign-emp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--glass-border);
+  text-align: start;
+  cursor: pointer;
+  transition: transform 180ms ease, background 180ms ease, border-color 180ms ease;
+}
+.reassign-emp-row:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+  background: rgba(139, 92, 246, 0.08);
+}
+.reassign-emp-row img,
+.reassign-emp-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-card);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.reassign-emp-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.reassign-emp-name {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 13px;
+}
+.reassign-emp-title {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Warehouse zone-area transfer button — same hover-reveal pattern as edit/delete */
+.zone-area-transfer {
+  position: absolute;
+  top: 6px;
+  inset-inline-end: 38px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.6);
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 4;
+  opacity: 0;
+  transform: translateY(-3px) scale(0.94);
+  transition: opacity 220ms ease, transform 220ms ease, background 180ms ease;
+}
+.zone-area-card:hover .zone-area-transfer,
+.zone-area-card:focus-within .zone-area-transfer { opacity: 1; transform: translateY(0) scale(1); }
+.zone-area-transfer:hover { background: #06b6d4; }
+.zone-area-transfer i { font-size: 11px; }
+
+/* Zone-detail header transfer button — gentle pulse to draw the eye */
+.zone-transfer-btn:hover i { animation: cond-pulse 1.2s ease-in-out infinite; }
+
+/* Item-row transfer-record button (in dept items list) */
+.btn-transfer-record:hover { color: #06b6d4; }
+@media (hover: none) {
+  .zone-area-transfer { opacity: 1; transform: none; }
 }

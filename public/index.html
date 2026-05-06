@@ -461,24 +461,35 @@
                     <h2 class="dept-detail-name"></h2>
                     <div class="dept-detail-image"></div>
                 </div>
+                <div class="dept-header-actions">
+                    <button class="dept-header-action dept-header-action-edit" onclick="openEditDeptModal(currentDeptId)" title="" data-i18n-title="editDepartment" data-i18n-aria="editDepartment" aria-label="Edit Department">
+                        <i class="fas fa-pen"></i>
+                    </button>
+                    <button class="dept-header-action dept-header-action-reassign" onclick="openReassignManagerModal(currentDeptId)" title="" data-i18n-title="reassignManager" data-i18n-aria="reassignManager" aria-label="Change Manager">
+                        <i class="fas fa-user-shield"></i>
+                    </button>
+                    <button class="dept-header-action dept-header-action-delete" onclick="confirmDeleteDept(currentDeptId)" title="" data-i18n-title="deleteDepartment" data-i18n-aria="deleteDepartment" aria-label="Delete Department">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
             </div>
             <div class="dept-detail-tabs">
-                <button class="dept-dtab active" id="tabEquipment" onclick="switchDeptDetailTab('equipment')">
-                    <i class="fas fa-tools"></i>
-                    <span data-i18n="equipment">Equipment / العهدة</span>
-                </button>
-                <button class="dept-dtab" id="tabHistory" onclick="switchDeptDetailTab('history')">
-                    <i class="fas fa-history"></i>
-                    <span data-i18n="history">History</span>
-                </button>
-                <button class="dept-dtab" id="tabItems" onclick="switchDeptDetailTab('items')">
+                <button class="dept-dtab active" id="tabItems" onclick="switchDeptDetailTab('items')">
                     <i class="fas fa-cubes"></i>
                     <span data-i18n="items">Items</span>
+                </button>
+                <button class="dept-dtab" id="tabEquipment" onclick="switchDeptDetailTab('equipment')">
+                    <i class="fas fa-tools"></i>
+                    <span data-i18n="equipment">Equipment / العهدة</span>
                 </button>
                 <button class="dept-dtab" id="tabIncoming" onclick="switchDeptDetailTab('incoming')">
                     <i class="fas fa-inbox"></i>
                     <span data-i18n="incomingCustody">Incoming Custody</span>
                     <span class="dept-tab-badge" id="incomingBadge" style="display:none">0</span>
+                </button>
+                <button class="dept-dtab" id="tabHistory" onclick="switchDeptDetailTab('history')">
+                    <i class="fas fa-clock-rotate-left"></i>
+                    <span data-i18n="record">Record</span>
                 </button>
             </div>
 
@@ -501,6 +512,7 @@
                         <span data-i18n="print">Print</span>
                     </button>
                 </div>
+                <div class="cond-filter-bar" id="deptEquipFilter"></div>
                 <div class="equip-grid" id="equipGrid"></div>
                 <div class="equip-add-card">
                     <div class="equip-add-header">
@@ -523,6 +535,16 @@
                         <div class="equip-add-field">
                             <i class="fas fa-bullseye"></i>
                             <input type="text" id="newEquipPurpose" data-i18n-placeholder="purpose" placeholder="Purpose">
+                        </div>
+                        <div class="equip-add-field equip-add-field-sm">
+                            <i class="fas fa-clipboard-check"></i>
+                            <select id="newEquipCondition" class="area-add-condition" title="" data-i18n-title="condition">
+                                <option value="new" data-i18n="conditionNew">New</option>
+                                <option value="used" data-i18n="conditionUsed">Used</option>
+                                <option value="repairable" data-i18n="conditionRepairable">Repairable</option>
+                                <option value="maintenance" data-i18n="conditionMaintenance">Needs Maintenance</option>
+                                <option value="damaged" data-i18n="conditionDamaged">Damaged</option>
+                            </select>
                         </div>
                         <label class="equip-add-file-btn">
                             <i class="fas fa-camera"></i>
@@ -579,6 +601,7 @@
                         <span data-i18n="printIncoming">Print Incoming</span>
                     </button>
                 </div>
+                <div class="cond-filter-bar" id="deptItemsFilter"></div>
                 <div class="dept-items-container" id="deptItemsContainer">
                     <div class="loading-spinner" data-i18n="loading">Loading...</div>
                 </div>
@@ -586,6 +609,13 @@
                     <input type="text" id="newDeptItemName" data-i18n-placeholder="itemName" placeholder="Item name">
                     <input type="number" id="newDeptItemQty" placeholder="1" min="1" value="1">
                     <input type="text" id="newDeptItemDesc" data-i18n-placeholder="description" placeholder="Description">
+                    <select id="newDeptItemCondition" class="area-add-condition">
+                        <option value="new" data-i18n="conditionNew">New</option>
+                        <option value="used" data-i18n="conditionUsed">Used</option>
+                        <option value="repairable" data-i18n="conditionRepairable">Repairable</option>
+                        <option value="maintenance" data-i18n="conditionMaintenance">Needs Maintenance</option>
+                        <option value="damaged" data-i18n="conditionDamaged">Damaged</option>
+                    </select>
                     <input type="file" id="newDeptItemFile" accept="image/*">
                     <button class="btn-add" onclick="addDeptItem()">
                         <i class="fas fa-plus"></i>
@@ -1167,6 +1197,159 @@
                 <i class="fas fa-plus"></i>
                 <span data-i18n="add">Add</span>
             </button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Department Modal -->
+<div class="modal-overlay" id="editDeptModal">
+    <div class="modal-content modal-sm">
+        <div class="modal-header">
+            <h2><i class="fas fa-pen" style="margin-right:8px;color:var(--accent)"></i> <span data-i18n="editDepartment">Edit Department</span></h2>
+            <button class="modal-close" onclick="closeModal('editDeptModal')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="editDeptId">
+            <div class="form-group">
+                <label data-i18n="deptName">Department Name</label>
+                <input type="text" id="editDeptName">
+            </div>
+            <div class="form-group">
+                <label data-i18n="manager">Manager</label>
+                <input type="text" id="editDeptManager" placeholder="">
+            </div>
+            <div class="form-group">
+                <label data-i18n="description">Description</label>
+                <input type="text" id="editDeptDesc">
+            </div>
+            <div class="form-group">
+                <label data-i18n="imageOptional">Image (optional)</label>
+                <div class="image-uploader" data-uploader="editDept">
+                    <div class="image-uploader-preview" id="editDeptPreview">
+                        <i class="fas fa-building" style="font-size:32px;color:var(--text-muted)"></i>
+                    </div>
+                    <div class="image-uploader-actions">
+                        <label class="image-uploader-pick">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <span data-i18n="chooseImage">Choose image</span>
+                            <input type="file" id="editDeptImageFile" accept="image/jpeg,image/jpg,image/png,image/webp" onchange="handleImagePick('editDept', this)">
+                        </label>
+                        <button type="button" class="image-uploader-remove" id="editDeptRemoveBtn" onclick="clearImagePick('editDept')" hidden>
+                            <i class="fas fa-trash-alt"></i>
+                            <span data-i18n="removeImage">Remove image</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeModal('editDeptModal')" data-i18n="cancel">Cancel</button>
+            <button class="btn-add" onclick="saveEditDept()"><i class="fas fa-save"></i> <span data-i18n="save">Save</span></button>
+        </div>
+    </div>
+</div>
+
+<!-- Reassign Manager Modal -->
+<div class="modal-overlay" id="reassignManagerModal">
+    <div class="modal-content modal-sm">
+        <div class="modal-header">
+            <h2><i class="fas fa-user-shield" style="margin-right:8px;color:var(--accent)"></i> <span data-i18n="reassignManager">Change Responsible Employee</span></h2>
+            <button class="modal-close" onclick="closeModal('reassignManagerModal')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="reassignDeptId">
+            <div class="reassign-current">
+                <span class="reassign-current-label" data-i18n="currentEmployee">Current</span>
+                <strong id="reassignCurrentManager">—</strong>
+            </div>
+            <div class="form-group">
+                <input type="text" id="reassignManagerSearch" data-i18n-placeholder="searchEmployees" placeholder="Search employees..." oninput="filterReassignList(this.value)">
+            </div>
+            <div class="reassign-emp-list" id="reassignManagerList"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeModal('reassignManagerModal')" data-i18n="cancel">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Shared Transfer Dialog (warehouse zones/spaces + dept items/equipment) -->
+<div class="modal-overlay" id="transferDialog">
+    <div class="modal-content modal-sm">
+        <div class="modal-header">
+            <h2 id="transferDialogTitle"><i class="fas fa-arrow-right-arrow-left" style="margin-right:8px;color:var(--accent)"></i> <span data-i18n="transferAction">Transfer</span></h2>
+            <button class="modal-close" onclick="closeTransferDialog()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div id="transferDialogSubtitle" class="transfer-subtitle"></div>
+            <div class="transfer-pill-bar" id="transferDestPills"></div>
+            <div id="transferDialogBody"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeTransferDialog()" data-i18n="cancel">Cancel</button>
+            <button class="btn-add" onclick="confirmTransferDialog()">
+                <i class="fas fa-arrow-right-arrow-left"></i>
+                <span data-i18n="transfer">Transfer</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Department Item Modal -->
+<div class="modal-overlay" id="editDeptItemModal">
+    <div class="modal-content modal-sm">
+        <div class="modal-header">
+            <h2><i class="fas fa-cube" style="margin-right:8px;color:var(--accent)"></i> <span id="editDeptItemTitle" data-i18n="editItemTitle">Edit Item</span></h2>
+            <button class="modal-close" onclick="closeModal('editDeptItemModal')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="editDeptItemId">
+            <input type="hidden" id="editDeptItemKind"><!-- 'item' | 'equipment' -->
+            <div class="form-group">
+                <label data-i18n="itemName">Item Name</label>
+                <input type="text" id="editDeptItemName">
+            </div>
+            <div class="form-group">
+                <label data-i18n="description">Description</label>
+                <input type="text" id="editDeptItemDesc">
+            </div>
+            <div class="form-group">
+                <label data-i18n="quantity">Quantity</label>
+                <input type="number" min="1" id="editDeptItemQty">
+            </div>
+            <div class="form-group">
+                <label data-i18n="condition">Condition</label>
+                <select id="editDeptItemCondition">
+                    <option value="new" data-i18n="conditionNew">New</option>
+                    <option value="used" data-i18n="conditionUsed">Used</option>
+                    <option value="repairable" data-i18n="conditionRepairable">Repairable</option>
+                    <option value="maintenance" data-i18n="conditionMaintenance">Needs Maintenance</option>
+                    <option value="damaged" data-i18n="conditionDamaged">Damaged</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label data-i18n="imageOptional">Image (optional)</label>
+                <div class="image-uploader" data-uploader="editDeptItem">
+                    <div class="image-uploader-preview" id="editDeptItemPreview">
+                        <i class="fas fa-cube" style="font-size:32px;color:var(--text-muted)"></i>
+                    </div>
+                    <div class="image-uploader-actions">
+                        <label class="image-uploader-pick">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <span data-i18n="chooseImage">Choose image</span>
+                            <input type="file" id="editDeptItemImageFile" accept="image/jpeg,image/jpg,image/png,image/webp" onchange="handleImagePick('editDeptItem', this)">
+                        </label>
+                        <button type="button" class="image-uploader-remove" id="editDeptItemRemoveBtn" onclick="clearImagePick('editDeptItem')" hidden>
+                            <i class="fas fa-trash-alt"></i>
+                            <span data-i18n="removeImage">Remove image</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeModal('editDeptItemModal')" data-i18n="cancel">Cancel</button>
+            <button class="btn-add" onclick="saveEditDeptItem()"><i class="fas fa-save"></i> <span data-i18n="save">Save</span></button>
         </div>
     </div>
 </div>

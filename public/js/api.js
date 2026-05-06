@@ -83,6 +83,10 @@ const API = {
     transferZoneItem(id, data) { return this.request('PATCH', '/warehouse/items/' + id + '/transfer', data); },
     uploadZoneItemImage(id, file) { return this.upload('/warehouse/items/' + id + '/image', file); },
 
+    // Bulk transfer (warehouse zone or area as the source)
+    transferZoneBulk(zoneId, data) { return this.request('POST', '/warehouse/zones/' + zoneId + '/transfer', data); },
+    transferAreaBulk(areaId, data) { return this.request('POST', '/warehouse/areas/' + areaId + '/transfer', data); },
+
     // Departments
     getDepartments()         { return this.request('GET', '/departments'); },
     getDepartment(id)        { return this.request('GET', '/departments/' + id); },
@@ -114,6 +118,10 @@ const API = {
     getEquipmentCovenant(id)            { return this.request('GET', '/departments/equipment/' + id + '/covenant'); },
     addEquipmentCovenant(id, data)      { return this.request('POST', '/departments/equipment/' + id + '/covenant', data); },
     returnEquipmentCustody(id, data)    { return this.request('POST', '/departments/equipment/' + id + '/return-custody', data || {}); },
+
+    // Department transfer (move row to another dept and/or swap items↔equipment list type)
+    transferDeptItem(itemId, data)      { return this.request('POST', '/departments/items/' + itemId + '/transfer-record', data); },
+    transferDeptEquipment(eqId, data)   { return this.request('POST', '/departments/equipment/' + eqId + '/transfer-record', data); },
 
     // Responsibility History
     getDeptHistory(did)           { return this.request('GET', '/departments/' + did + '/history'); },

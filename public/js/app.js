@@ -139,8 +139,34 @@ const i18n = {
         reset:'Reset',
         condition:'Condition',
         conditionNew:'New', conditionUsed:'Used', conditionDamaged:'Damaged', conditionMaintenance:'Needs Maintenance',
+        conditionRepairable:'Repairable',
         filterByCondition:'Filter by condition', allConditions:'All',
         warehouseImageAlt:'Cover image of {name}',
+        // Department actions + transfer dialog
+        editDepartment:'Edit Department', deleteDepartment:'Delete Department',
+        reassignManager:'Change Responsible Employee',
+        deleteDepartmentConfirm:'Delete this department? Its items, equipment, and history will be removed.',
+        deleteNonEmptyWarning:'This department still has items or equipment. They will be deleted too.',
+        transferAction:'Transfer', transferZone:'Transfer Zone',
+        transferSpace:'Transfer Space', transferZoneSubtitle:'Move all items in this zone to a department or another warehouse zone/space',
+        transferSpaceSubtitle:'Move all items in this space to a department or another warehouse zone/space',
+        transferDestType:'Destination Type',
+        destDepartment:'A Department', destWarehouse:'A Warehouse Zone / Space',
+        destEmployee:'An Employee', destSwapList:'Swap List Type (Items ↔ Equipment)',
+        targetWarehouse:'Target Warehouse / Zone',
+        confirmTransferTitle:'Confirm Transfer',
+        confirmTransferBody:'This will MOVE {count} item(s) from {source} to {dest}. This action cannot be undone automatically.',
+        transferComplete:'Transfer complete · {count} item(s) moved',
+        nothingToTransfer:'Nothing to transfer — source is empty',
+        moveToOtherDept:'Move to another department',
+        switchToEquipment:'Switch to Equipment list',
+        switchToItems:'Switch to Items list',
+        editItemTitle:'Edit Item', editEquipmentTitle:'Edit Equipment',
+        deleteItemConfirm:'Delete this item permanently?',
+        deleteEquipmentConfirm:'Delete this equipment permanently?',
+        thisDepartment:'This Department',
+        completed:'Completed',
+        record:'Record',
     },
     ar: {
         appTitle:'FABY Keeper', home:'الرئيسية', lockers:'الخزائن', warehouse:'المستودع',
@@ -281,8 +307,34 @@ const i18n = {
         reset:'إعادة تعيين',
         condition:'الحالة',
         conditionNew:'جديد', conditionUsed:'مستعمل', conditionDamaged:'تالف', conditionMaintenance:'بحاجة للصيانة',
+        conditionRepairable:'قابلة للصيانة',
         filterByCondition:'تصفية حسب الحالة', allConditions:'الكل',
         warehouseImageAlt:'صورة غلاف {name}',
+        editDepartment:'تعديل القسم', deleteDepartment:'حذف القسم',
+        reassignManager:'تغيير الموظف المسؤول',
+        deleteDepartmentConfirm:'حذف هذا القسم؟ سيتم حذف العناصر والمعدات والسجلات المرتبطة به.',
+        deleteNonEmptyWarning:'هذا القسم يحتوي على عناصر أو معدات. سيتم حذفها أيضاً.',
+        transferAction:'نقل', transferZone:'نقل المنطقة',
+        transferSpace:'نقل المساحة',
+        transferZoneSubtitle:'نقل جميع عناصر هذه المنطقة إلى قسم أو منطقة/مساحة في مستودع آخر',
+        transferSpaceSubtitle:'نقل جميع عناصر هذه المساحة إلى قسم أو منطقة/مساحة في مستودع آخر',
+        transferDestType:'نوع الوجهة',
+        destDepartment:'قسم', destWarehouse:'منطقة / مساحة في مستودع',
+        destEmployee:'موظف', destSwapList:'تبديل نوع القائمة (عناصر ↔ معدات)',
+        targetWarehouse:'المستودع / المنطقة الهدف',
+        confirmTransferTitle:'تأكيد النقل',
+        confirmTransferBody:'سيتم نقل {count} عنصر من {source} إلى {dest}. لا يمكن التراجع عن هذا الإجراء تلقائياً.',
+        transferComplete:'تم النقل · {count} عنصر',
+        nothingToTransfer:'لا يوجد ما يمكن نقله — المصدر فارغ',
+        moveToOtherDept:'نقل إلى قسم آخر',
+        switchToEquipment:'تحويل إلى قائمة المعدات',
+        switchToItems:'تحويل إلى قائمة العناصر',
+        editItemTitle:'تعديل العنصر', editEquipmentTitle:'تعديل المعدة',
+        deleteItemConfirm:'حذف هذا العنصر نهائياً؟',
+        deleteEquipmentConfirm:'حذف هذه المعدة نهائياً؟',
+        thisDepartment:'هذا القسم',
+        completed:'منتهي',
+        record:'السجل',
     }
 };
 
@@ -409,16 +461,19 @@ function getStatus(qty, minStock) {
     return { cls: 'status-ok', qcls: 'ok', label: t('inStock'), icon: '<i class="fas fa-check-circle"></i>' };
 }
 
-// Item condition: enum that travels with each warehouse_item
-// ('new'|'used'|'damaged'|'maintenance'). Anything else falls back to 'new'
-// so legacy or malformed values still render cleanly.
-const ITEM_CONDITIONS = ['new', 'used', 'damaged', 'maintenance'];
+// Item condition: enum shared by warehouse_items, department_items, and
+// department_equipment. ('new'|'used'|'damaged'|'maintenance'|'repairable').
+// Anything else falls back to 'new' so legacy or malformed values still
+// render cleanly. 'repairable' was added in v5 — it's tinted teal so it
+// stays visually distinct from 'maintenance' (blue).
+const ITEM_CONDITIONS = ['new', 'used', 'damaged', 'maintenance', 'repairable'];
 function normalizeCondition(c) { return ITEM_CONDITIONS.indexOf(c) === -1 ? 'new' : c; }
 function getConditionMeta(c) {
     var key = normalizeCondition(c);
     if (key === 'used')         return { key: 'used',        cls: 'cond-used',        label: t('conditionUsed'),        icon: '<i class="fas fa-history"></i>' };
     if (key === 'damaged')      return { key: 'damaged',     cls: 'cond-damaged',     label: t('conditionDamaged'),     icon: '<i class="fas fa-exclamation-triangle"></i>' };
     if (key === 'maintenance')  return { key: 'maintenance', cls: 'cond-maintenance', label: t('conditionMaintenance'), icon: '<i class="fas fa-wrench"></i>' };
+    if (key === 'repairable')   return { key: 'repairable',  cls: 'cond-repairable',  label: t('conditionRepairable'),  icon: '<i class="fas fa-tools"></i>' };
     return                             { key: 'new',         cls: 'cond-new',         label: t('conditionNew'),         icon: '<i class="fas fa-star"></i>' };
 }
 function conditionBadgeHtml(c) {
@@ -1563,6 +1618,7 @@ async function renderZoneDetail() {
         if (zone.description) html += '<div class="zone-detail-desc">' + escapeHtml(zone.description) + '</div>';
         html += '</div>';
         html += '<button class="btn-icon zone-edit-btn" onclick="printZone(' + zone.id + ')" title="' + t('print') + '" style="margin-right:6px"><i class="fas fa-print" style="color:' + color + '"></i></button>';
+        html += '<button class="btn-icon zone-edit-btn zone-transfer-btn" onclick="openTransferDialog({kind:\'wh-zone\',id:' + zone.id + ',name:' + JSON.stringify(zone.name) + ',itemCount:' + (zone.items || []).length + '})" title="' + t('transferZone') + '" aria-label="' + t('transferZone') + '"><i class="fas fa-arrow-right-arrow-left" style="color:' + color + '"></i></button>';
         html += '<button class="btn-icon zone-edit-btn" onclick="openEditZoneModal()" title="' + t('editZoneBtn') + '" aria-label="' + t('editZoneBtn') + '"><i class="fas fa-pen" style="color:' + color + '"></i></button>';
         html += '</div>';
 
@@ -1582,6 +1638,7 @@ async function renderZoneDetail() {
                     : '<svg class="wh-svg-icon wh-svg-area" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>';
                 html += '<div class="zone-area-card' + (area.image ? ' has-image' : '') + '" onclick="openAreaItems(' + area.id + ',\'' + escapeHtml(area.name).replace(/'/g, "\\'") + '\')" tabindex="0" role="button" aria-label="' + escapeHtml(area.name) + '">';
                 html += '<button class="zone-area-edit" onclick="event.stopPropagation();openEditAreaModal(' + area.id + ',\'' + escapeHtml(area.name).replace(/'/g, "\\'") + '\',\'' + escapeHtml(area.description || '').replace(/'/g, "\\'") + '\')" title="' + t('editBtn') + '" aria-label="' + t('editBtn') + '"><i class="fas fa-pen"></i></button>';
+                html += '<button class="zone-area-transfer" onclick="event.stopPropagation();openTransferDialog({kind:\'wh-area\',id:' + area.id + ',name:' + JSON.stringify(area.name) + ',itemCount:' + (area.items || []).length + '})" title="' + t('transferSpace') + '" aria-label="' + t('transferSpace') + '"><i class="fas fa-arrow-right-arrow-left"></i></button>';
                 html += '<button class="zone-area-delete" onclick="event.stopPropagation();deleteArea(' + area.id + ')" title="' + t('deleteBtn') + '" aria-label="' + t('deleteBtn') + '"><i class="fas fa-times"></i></button>';
                 html += '<div class="zone-area-card-icon zone-card-icon-fancy" style="background:' + color + '">' + areaIcon + '</div>';
                 html += '<div class="zone-area-card-name">' + escapeHtml(area.name) + '</div>';
@@ -1657,6 +1714,7 @@ function openAreaItems(areaId, areaName) {
                         '<option value="used"'        + (cond === 'used'        ? ' selected' : '') + '>' + t('conditionUsed')        + '</option>' +
                         '<option value="damaged"'     + (cond === 'damaged'     ? ' selected' : '') + '>' + t('conditionDamaged')     + '</option>' +
                         '<option value="maintenance"' + (cond === 'maintenance' ? ' selected' : '') + '>' + t('conditionMaintenance') + '</option>' +
+                        '<option value="repairable"'  + (cond === 'repairable'  ? ' selected' : '') + '>' + t('conditionRepairable')  + '</option>' +
                     '</select>' +
                 '</div>' +
                 '<div class="area-item-status ' + status.cls + '">' + status.icon + ' ' + status.label + '</div>';
@@ -1674,14 +1732,15 @@ window.__condBadge = function(c) { return conditionBadgeHtml(c); };
 function renderConditionFilterChips(items) {
     var bar = document.getElementById('areaItemsFilter');
     if (!bar) return;
-    var counts = { all: items.length, new: 0, used: 0, damaged: 0, maintenance: 0 };
+    var counts = { all: items.length, new: 0, used: 0, damaged: 0, maintenance: 0, repairable: 0 };
     items.forEach(function(it) { counts[normalizeCondition(it.condition)]++; });
     var chips = [
         { key: 'all',         label: t('allConditions'),        icon: '<i class="fas fa-layer-group"></i>' },
         { key: 'new',         label: t('conditionNew'),         icon: '<i class="fas fa-star"></i>' },
         { key: 'used',        label: t('conditionUsed'),        icon: '<i class="fas fa-history"></i>' },
         { key: 'damaged',     label: t('conditionDamaged'),     icon: '<i class="fas fa-exclamation-triangle"></i>' },
-        { key: 'maintenance', label: t('conditionMaintenance'), icon: '<i class="fas fa-wrench"></i>' }
+        { key: 'maintenance', label: t('conditionMaintenance'), icon: '<i class="fas fa-wrench"></i>' },
+        { key: 'repairable',  label: t('conditionRepairable'),  icon: '<i class="fas fa-tools"></i>' }
     ];
     bar.innerHTML = '<span class="cond-filter-label">' + escapeHtml(t('filterByCondition')) + ':</span>' +
         chips.map(function(c) {
@@ -2052,6 +2111,246 @@ async function uploadZoneItemImg(id, file) {
     } catch (e) { showToast(e.message, 'error'); }
 }
 
+// ============ Shared TransferDialog ============
+// One dialog reused by:
+//  - warehouse zone Transfer (moves all items in zone)
+//  - warehouse space (area) Transfer (moves all items in area)
+//  - department item Transfer (move to other dept / swap to equipment list)
+//  - department equipment Transfer (move to other dept / swap to items list)
+//
+// Source descriptor shape:
+//   { kind: 'wh-zone' | 'wh-area' | 'dept-item' | 'dept-equipment',
+//     id, name, itemCount, departmentId? }
+//
+// We only render destination types that make sense for the source kind.
+var _xferState = { source: null, destType: null, departments: [], zones: [], areasCache: {} };
+
+function _kindAllowsDestination(kind, destType) {
+    // Warehouse-side sources: dept OR another warehouse spot.
+    if (kind === 'wh-zone' || kind === 'wh-area') {
+        return destType === 'department' || destType === 'warehouse';
+    }
+    // Department-side sources: another dept (same list type) OR swap list type.
+    if (kind === 'dept-item' || kind === 'dept-equipment') {
+        return destType === 'department' || destType === 'swap-list';
+    }
+    return false;
+}
+
+function _xferTitle(source) {
+    if (!source) return t('transferAction');
+    if (source.kind === 'wh-zone') return t('transferZone');
+    if (source.kind === 'wh-area') return t('transferSpace');
+    return t('transferAction');
+}
+
+function _xferSubtitle(source) {
+    if (!source) return '';
+    if (source.kind === 'wh-zone') return t('transferZoneSubtitle');
+    if (source.kind === 'wh-area') return t('transferSpaceSubtitle');
+    if (source.kind === 'dept-item' || source.kind === 'dept-equipment') {
+        return source.kind === 'dept-item' ? t('moveToOtherDept') : t('moveToOtherDept');
+    }
+    return '';
+}
+
+async function openTransferDialog(source) {
+    _xferState.source = source;
+    _xferState.destType = null;
+    _xferState.zones = [];
+    _xferState.departments = [];
+    _xferState.areasCache = {};
+
+    // Pre-load lookups in parallel — the dialog renders instantly off cached data.
+    try {
+        var lookups = [API.getZones(), API.getDepartments()];
+        var results = await Promise.all(lookups);
+        _xferState.zones = results[0] || [];
+        _xferState.departments = results[1] || [];
+    } catch (e) { /* the dialog will still work, just with empty selects */ }
+
+    // Pick the first dest type the source allows so the user lands on a usable form.
+    var firstDest = _kindAllowsDestination(source.kind, 'department') ? 'department'
+                  : _kindAllowsDestination(source.kind, 'warehouse')  ? 'warehouse'
+                  : 'swap-list';
+    _xferState.destType = firstDest;
+
+    _renderTransferDialog();
+    var modal = document.getElementById('transferDialog');
+    if (modal) modal.classList.add('active');
+}
+
+function closeTransferDialog() {
+    var modal = document.getElementById('transferDialog');
+    if (modal) modal.classList.remove('active');
+    _xferState.source = null;
+    _xferState.destType = null;
+}
+
+function _renderTransferDialog() {
+    var src = _xferState.source;
+    if (!src) return;
+    var titleEl = document.getElementById('transferDialogTitle');
+    var subEl = document.getElementById('transferDialogSubtitle');
+    if (titleEl) titleEl.textContent = _xferTitle(src) + (src.name ? ' · ' + src.name : '');
+    if (subEl) subEl.textContent = _xferSubtitle(src);
+
+    // Destination type pills — only show the ones the source kind allows.
+    var pillBar = document.getElementById('transferDestPills');
+    var allDestTypes = [
+        { key: 'department', icon: 'fa-building',      label: t('destDepartment') },
+        { key: 'warehouse',  icon: 'fa-warehouse',     label: t('destWarehouse') },
+        { key: 'swap-list',  icon: 'fa-exchange-alt',  label: t('destSwapList') }
+    ];
+    pillBar.innerHTML = allDestTypes
+        .filter(function(d) { return _kindAllowsDestination(src.kind, d.key); })
+        .map(function(d) {
+            var active = _xferState.destType === d.key ? ' active' : '';
+            return '<button type="button" class="transfer-pill' + active + '" onclick="setTransferDest(\'' + d.key + '\')">' +
+                '<i class="fas ' + d.icon + '"></i> <span>' + escapeHtml(d.label) + '</span></button>';
+        }).join('');
+
+    // Body — the per-dest-type form
+    var body = document.getElementById('transferDialogBody');
+    if (_xferState.destType === 'department') {
+        var opts = _xferState.departments
+            .filter(function(d) { return src.kind !== 'dept-item' && src.kind !== 'dept-equipment' ? true : Number(d.id) !== Number(src.departmentId || 0); })
+            .map(function(d) { return '<option value="' + d.id + '">' + escapeHtml(d.name) + '</option>'; })
+            .join('');
+        body.innerHTML =
+            '<div class="form-group">' +
+                '<label>' + t('selectDepartment') + '</label>' +
+                '<select id="xferDeptSelect"><option value="">' + t('selectDepartment') + '</option>' + opts + '</select>' +
+            '</div>';
+    } else if (_xferState.destType === 'warehouse') {
+        var zoneOpts = _xferState.zones
+            .filter(function(z) { return src.kind === 'wh-zone' ? Number(z.id) !== Number(src.id) : true; })
+            .map(function(z) { return '<option value="' + z.id + '">' + escapeHtml(z.name) + '</option>'; })
+            .join('');
+        body.innerHTML =
+            '<div class="form-group">' +
+                '<label>' + t('targetZone') + '</label>' +
+                '<select id="xferZoneSelect" onchange="onTransferDialogZoneChange()"><option value="">' + t('selectTargetZone') + '</option>' + zoneOpts + '</select>' +
+            '</div>' +
+            '<div class="form-group">' +
+                '<label>' + t('targetArea') + '</label>' +
+                '<select id="xferAreaSelect"><option value="">' + t('noArea') + '</option></select>' +
+            '</div>';
+    } else if (_xferState.destType === 'swap-list') {
+        var nextLabel = src.kind === 'dept-item' ? t('switchToEquipment') : t('switchToItems');
+        body.innerHTML =
+            '<div class="form-group">' +
+                '<label>' + t('selectDepartment') + '</label>' +
+                '<select id="xferDeptSelect">' +
+                    '<option value="' + (src.departmentId || '') + '">' + t('thisDepartment') + '</option>' +
+                    _xferState.departments
+                        .filter(function(d) { return Number(d.id) !== Number(src.departmentId || 0); })
+                        .map(function(d) { return '<option value="' + d.id + '">' + escapeHtml(d.name) + '</option>'; }).join('') +
+                '</select>' +
+            '</div>' +
+            '<div class="transfer-swap-preview"><i class="fas fa-arrow-right-arrow-left"></i> ' + escapeHtml(nextLabel) + '</div>';
+    }
+}
+
+function setTransferDest(key) {
+    if (!_xferState.source) return;
+    if (!_kindAllowsDestination(_xferState.source.kind, key)) return;
+    _xferState.destType = key;
+    _renderTransferDialog();
+}
+
+async function onTransferDialogZoneChange() {
+    var zoneSel = document.getElementById('xferZoneSelect');
+    var areaSel = document.getElementById('xferAreaSelect');
+    var zid = parseInt(zoneSel.value);
+    areaSel.innerHTML = '<option value="">' + t('noArea') + '</option>';
+    if (!zid) return;
+    try {
+        if (!_xferState.areasCache[zid]) _xferState.areasCache[zid] = await API.getAreas(zid);
+        _xferState.areasCache[zid].forEach(function(a) {
+            // If source is the same area, exclude it from candidates.
+            if (_xferState.source.kind === 'wh-area' && Number(a.id) === Number(_xferState.source.id)) return;
+            areaSel.innerHTML += '<option value="' + a.id + '">' + escapeHtml(a.name) + '</option>';
+        });
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function confirmTransferDialog() {
+    var src = _xferState.source;
+    if (!src) return;
+
+    try {
+        if (src.kind === 'wh-zone' || src.kind === 'wh-area') {
+            var payload;
+            if (_xferState.destType === 'department') {
+                var deptId = parseInt((document.getElementById('xferDeptSelect') || {}).value);
+                if (!deptId) { showToast(t('selectDepartment'), 'error'); return; }
+                payload = { destination_type: 'department', department_id: deptId };
+            } else {
+                var zoneId = parseInt((document.getElementById('xferZoneSelect') || {}).value);
+                if (!zoneId) { showToast(t('selectTargetZone'), 'error'); return; }
+                var areaVal = (document.getElementById('xferAreaSelect') || {}).value;
+                payload = { destination_type: 'warehouse', zone_id: zoneId, area_id: areaVal ? parseInt(areaVal) : null };
+            }
+
+            var result = src.kind === 'wh-zone'
+                ? await API.transferZoneBulk(src.id, payload)
+                : await API.transferAreaBulk(src.id, payload);
+
+            closeTransferDialog();
+            if (Number(result.moved || 0) === 0) {
+                showToast(t('nothingToTransfer'), 'warning');
+            } else {
+                showToast(t('transferComplete').replace('{count}', result.moved));
+            }
+
+            // Refresh whichever warehouse view we were on.
+            if (currentZoneId) {
+                currentZoneData = await API.getZone(currentZoneId);
+                if (currentAreaId) {
+                    var area = (currentZoneData.areas || []).find(function(a) { return a.id === currentAreaId; });
+                    if (area) openAreaItems(currentAreaId, area.name);
+                    else closeModal('areaItemsModal');
+                }
+                await renderZoneDetail();
+            } else {
+                await renderWarehouse();
+            }
+            return;
+        }
+
+        if (src.kind === 'dept-item' || src.kind === 'dept-equipment') {
+            var targetDept = parseInt((document.getElementById('xferDeptSelect') || {}).value);
+            if (!targetDept) { showToast(t('selectDepartment'), 'error'); return; }
+            var targetList;
+            if (_xferState.destType === 'swap-list') {
+                targetList = src.kind === 'dept-item' ? 'equipment' : 'items';
+            } else {
+                // 'department' destination: keep the same list type
+                targetList = src.kind === 'dept-item' ? 'items' : 'equipment';
+            }
+            var apiCall = src.kind === 'dept-item'
+                ? API.transferDeptItem(src.id, { target_department_id: targetDept, target_list: targetList })
+                : API.transferDeptEquipment(src.id, { target_department_id: targetDept, target_list: targetList });
+            await apiCall;
+
+            closeTransferDialog();
+            showToast(t('transferComplete').replace('{count}', 1));
+
+            if (currentDeptId) {
+                currentDeptData = await API.getDepartment(currentDeptId);
+                await renderItemsTab();
+                await renderEquipmentTab();
+                renderIncomingTab();
+                if (typeof renderRecordTab === 'function') await renderRecordTab();
+            }
+            return;
+        }
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
 // ============ Departments Page (Tabs) ============
 function switchDeptTab(tab) {
     // legacy compat - no-op now since employees have their own page
@@ -2081,7 +2380,12 @@ async function renderDepartments() {
             var card = document.createElement('div');
             card.className = 'dept-card';
             card.onclick = function() { currentDeptId = d.id; navigateTo('dept-detail'); };
-            card.innerHTML = '<button class="btn-icon locker-delete-btn" onclick="event.stopPropagation();deleteDept(' + d.id + ')"><i class="fas fa-trash-alt"></i></button>' +
+            card.innerHTML =
+                '<div class="dept-card-actions">' +
+                    '<button class="dept-card-action dept-card-action-edit" onclick="event.stopPropagation();openEditDeptModal(' + d.id + ')" title="' + t('editDepartment') + '" aria-label="' + t('editDepartment') + '"><i class="fas fa-pen"></i></button>' +
+                    '<button class="dept-card-action dept-card-action-reassign" onclick="event.stopPropagation();openReassignManagerModal(' + d.id + ')" title="' + t('reassignManager') + '" aria-label="' + t('reassignManager') + '"><i class="fas fa-user-shield"></i></button>' +
+                    '<button class="dept-card-action dept-card-action-delete" onclick="event.stopPropagation();confirmDeleteDept(' + d.id + ')" title="' + t('deleteDepartment') + '" aria-label="' + t('deleteDepartment') + '"><i class="fas fa-trash-alt"></i></button>' +
+                '</div>' +
                 '<div class="dept-card-icon"><i class="fas fa-building"></i></div>' +
                 '<div class="dept-card-name">' + escapeHtml(d.name) + '</div>' +
                 (d.manager ? '<div class="dept-card-manager"><i class="fas fa-user-shield"></i> ' + escapeHtml(d.manager) + '</div>' : '') +
@@ -2129,6 +2433,126 @@ async function deleteDept(id) {
     try {
         await API.deleteDepartment(id);
         renderDepartments();
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+// Cascade-delete a department after a stronger confirmation that warns the user
+// when the department isn't empty. Called by both the dept-card kebab and the
+// dept-detail header trash action.
+async function confirmDeleteDept(id) {
+    if (!id) return;
+    var msg = t('deleteDepartmentConfirm');
+    try {
+        var detail = await API.getDepartment(id);
+        var nonEmpty = (detail.items && detail.items.length) || (detail.equipment && detail.equipment.length) || (detail.employees && detail.employees.length);
+        if (nonEmpty) msg = t('deleteNonEmptyWarning') + '\n\n' + msg;
+    } catch (e) { /* if fetch fails, still ask the basic question */ }
+    if (!confirm(msg)) return;
+    try {
+        await API.deleteDepartment(id);
+        showToast(t('itemRemoved'));
+        if (currentPage === 'dept-detail') {
+            currentDeptId = null;
+            navigateTo('departments');
+        } else {
+            renderDepartments();
+        }
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+// Edit dialog — name, description, manager (free text), image.
+// We pre-fill with the current row from the API to avoid stale state.
+async function openEditDeptModal(id) {
+    if (!id) return;
+    try {
+        var d = await API.getDepartment(id);
+        document.getElementById('editDeptId').value = d.id;
+        document.getElementById('editDeptName').value = d.name || '';
+        document.getElementById('editDeptDesc').value = d.description || '';
+        var mgrInput = document.getElementById('editDeptManager');
+        if (mgrInput) mgrInput.value = d.manager || '';
+        // Reset image picker with the current image if any.
+        resetImagePicker('editDept', d.image || null);
+        document.getElementById('editDeptModal').classList.add('active');
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function saveEditDept() {
+    var id = document.getElementById('editDeptId').value;
+    if (!id) return;
+    var name = document.getElementById('editDeptName').value.trim();
+    if (!name) { showToast(t('deptName'), 'error'); return; }
+    try {
+        await API.updateDepartment(id, {
+            name: name,
+            description: document.getElementById('editDeptDesc').value.trim(),
+            manager: document.getElementById('editDeptManager').value.trim()
+        });
+        var picked = getPickedFile('editDept');
+        if (picked) await API.uploadDeptImage(id, picked);
+        closeModal('editDeptModal');
+        if (currentPage === 'dept-detail' && Number(currentDeptId) === Number(id)) {
+            await renderDeptDetail();
+        } else {
+            await renderDepartments();
+        }
+        showToast(t('added'));
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+// Reassign manager — searchable employee picker. The dept stores the manager
+// name as a free-text field, so we just write the picked employee's name.
+async function openReassignManagerModal(id) {
+    if (!id) return;
+    try {
+        var detail = await API.getDepartment(id);
+        document.getElementById('reassignDeptId').value = id;
+        document.getElementById('reassignCurrentManager').textContent = detail.manager || t('none');
+        var search = document.getElementById('reassignManagerSearch');
+        if (search) search.value = '';
+        var list = document.getElementById('reassignManagerList');
+        list.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i></div>';
+        document.getElementById('reassignManagerModal').classList.add('active');
+        var emps = await API.getEmployees();
+        list._allEmps = emps;
+        _renderReassignList(emps);
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+function _renderReassignList(emps) {
+    var list = document.getElementById('reassignManagerList');
+    if (!list) return;
+    if (!emps.length) { list.innerHTML = '<div class="empty-state">' + t('noEmployees') + '</div>'; return; }
+    list.innerHTML = emps.map(function(e) {
+        var safe = escapeHtml(e.name).replace(/'/g, "\\'");
+        return '<button type="button" class="reassign-emp-row" onclick="pickReassignManager(\'' + safe + '\')">' +
+            (e.photo ? '<img src="' + escapeHtml(e.photo) + '" alt="">' : '<span class="reassign-emp-avatar"><i class="fas fa-user"></i></span>') +
+            '<span class="reassign-emp-info">' +
+                '<span class="reassign-emp-name">' + escapeHtml(e.name) + '</span>' +
+                (e.job_title ? '<span class="reassign-emp-title">' + escapeHtml(e.job_title) + '</span>' : '') +
+            '</span></button>';
+    }).join('');
+}
+
+function filterReassignList(q) {
+    var list = document.getElementById('reassignManagerList');
+    if (!list || !list._allEmps) return;
+    q = (q || '').trim().toLowerCase();
+    var filtered = !q ? list._allEmps : list._allEmps.filter(function(e) {
+        return (e.name || '').toLowerCase().indexOf(q) !== -1 || (e.job_title || '').toLowerCase().indexOf(q) !== -1;
+    });
+    _renderReassignList(filtered);
+}
+
+async function pickReassignManager(name) {
+    var id = document.getElementById('reassignDeptId').value;
+    if (!id) return;
+    try {
+        await API.updateDepartment(id, { manager: name });
+        closeModal('reassignManagerModal');
+        if (currentPage === 'dept-detail' && Number(currentDeptId) === Number(id)) await renderDeptDetail();
+        else await renderDepartments();
+        showToast(t('added'));
     } catch (e) { showToast(e.message, 'error'); }
 }
 
@@ -2350,9 +2774,9 @@ async function renderDeptDetail() {
                 : '<i class="fas fa-building" style="font-size:32px;color:var(--text-muted)"></i>';
         }
 
-        // Reset to equipment tab
-        document.querySelectorAll('.dept-dtab').forEach(function(b, i) { b.classList.toggle('active', i === 0); });
-        document.querySelectorAll('.dept-dtab-content').forEach(function(c, i) { c.classList.toggle('active', i === 0); });
+        // Default landing tab is Items (per the new order: Items → Equipment → Incoming → Record).
+        // We toggle by id so reordering the buttons or content divs in HTML can't drift them apart.
+        switchDeptDetailTab('items');
 
         await renderEquipmentTab();
         await renderHistoryTab();
@@ -2507,12 +2931,17 @@ async function renderEquipmentTab() {
     var fEl = document.getElementById('equipFilter');
     var q = qEl ? qEl.value.trim().toLowerCase() : '';
     var f = fEl ? fEl.value : 'all';
+    var condFilter = window._deptEquipCondFilter || 'all';
+
+    var filterBar = document.getElementById('deptEquipFilter');
+    if (filterBar) renderDeptCondFilter(filterBar, items, 'equipment');
 
     var filtered = items.filter(function(it) {
         var active = getActiveCustody(it);
         var isOut = !!active;
         if (f === 'in' && isOut) return false;
         if (f === 'out' && !isOut) return false;
+        if (condFilter !== 'all' && normalizeCondition(it.condition) !== condFilter) return false;
         if (!q) return true;
         var hay = [it.name, it.description, it.purpose, it.receipt_date, it.employee_name, active && active.to_employee_name].filter(Boolean).join(' ').toLowerCase();
         return hay.indexOf(q) !== -1;
@@ -2533,7 +2962,8 @@ async function renderEquipmentTab() {
         var period = isOut ? ((active.start_date || active.transfer_date || '') + (active.end_date ? ' → ' + active.end_date : '')) : '';
 
         var card = document.createElement('div');
-        card.className = 'equip-card' + (isOut ? ' equip-card-out' : '');
+        var cond = normalizeCondition(item.condition);
+        card.className = 'equip-card cond-card-' + cond + (isOut ? ' equip-card-out' : '');
         card.style.animationDelay = (idx * 0.05) + 's';
         card.dataset.id = item.id;
 
@@ -2545,6 +2975,7 @@ async function renderEquipmentTab() {
                 '<div class="equip-card-visual"' + (item.image ? ' onclick="event.stopPropagation();openImageViewer(\'' + escapeHtml(item.image) + '\')" style="cursor:pointer"' : '') + '>' +
                     (item.image ? '<img src="' + escapeHtml(item.image) + '" onerror="this.parentElement.innerHTML=\'<i class=\\\'fas fa-cog equip-spin-icon\\\'></i>\'">' : '<i class="fas fa-cog equip-spin-icon"></i>') +
                     '<span class="equip-card-qty">x' + Number(item.qty || 0) + '</span>' +
+                    conditionBadgeHtml(cond) +
                 '</div>' +
                 '<div class="equip-card-head">' +
                     '<div class="equip-card-name" title="' + escapeHtml(item.name || '') + '">' + escapeHtml(item.name || '') + '</div>' +
@@ -2560,8 +2991,14 @@ async function renderEquipmentTab() {
                 '<button class="equip-action equip-action-transfer" onclick="event.stopPropagation();openCovenantModal({id:' + item.id + ',name:\'' + safeName + '\',entity_type:\'equipment\'})" title="' + t('transferCustody') + '">' +
                     '<i class="fas fa-exchange-alt"></i><span>' + t('transferBtn') + '</span>' +
                 '</button>' +
+                '<button class="equip-action equip-action-transfer" onclick="event.stopPropagation();openTransferDialog({kind:\'dept-equipment\',id:' + item.id + ',name:' + JSON.stringify(item.name || '') + ',departmentId:' + (currentDeptId || 0) + '})" title="' + t('transferAction') + '">' +
+                    '<i class="fas fa-arrow-right-arrow-left"></i><span>' + t('transferAction') + '</span>' +
+                '</button>' +
                 '<button class="equip-action equip-action-history" onclick="event.stopPropagation();openCovenantModal({id:' + item.id + ',name:\'' + safeName + '\',entity_type:\'equipment\'})" title="' + t('history') + '">' +
                     '<i class="fas fa-clock-rotate-left"></i><span>' + t('history') + '</span>' +
+                '</button>' +
+                '<button class="equip-action" onclick="event.stopPropagation();openEditDeptItem(\'equipment\',' + item.id + ')" title="' + t('editBtn') + '">' +
+                    '<i class="fas fa-pen"></i><span>' + t('edit') + '</span>' +
                 '</button>' +
                 (isOut ?
                 '<button class="equip-action equip-action-return" onclick="event.stopPropagation();returnCustody(' + item.id + ',\'equipment\')" title="' + t('markReturned') + '">' +
@@ -2570,7 +3007,7 @@ async function renderEquipmentTab() {
                 '<button class="equip-action equip-action-expand" onclick="event.stopPropagation();toggleEquipDetails(' + item.id + ')" title="' + t('details') + '">' +
                     '<i class="fas fa-sliders-h"></i><span>' + t('details') + '</span>' +
                 '</button>' +
-                '<button class="equip-action equip-action-delete" onclick="event.stopPropagation();deleteEquipment(' + item.id + ')" title="' + t('delete') + '">' +
+                '<button class="equip-action equip-action-delete" onclick="event.stopPropagation();confirmDeleteDeptItem(\'equipment\',' + item.id + ')" title="' + t('delete') + '">' +
                     '<i class="fas fa-trash-alt"></i>' +
                 '</button>' +
             '</div>' +
@@ -2591,6 +3028,16 @@ async function renderEquipmentTab() {
                     '<div class="equip-detail-field">' +
                         '<label><i class="fas fa-bullseye"></i> ' + t('purpose') + '</label>' +
                         '<input type="text" value="' + escapeHtml(item.purpose || '') + '" onchange="updateEquipmentInline(' + item.id + ',{purpose:this.value})">' +
+                    '</div>' +
+                    '<div class="equip-detail-field">' +
+                        '<label><i class="fas fa-clipboard-check"></i> ' + t('condition') + '</label>' +
+                        '<select onchange="updateEquipmentInline(' + item.id + ',{condition:this.value})">' +
+                            '<option value="new"'         + (cond === 'new'         ? ' selected' : '') + '>' + t('conditionNew')         + '</option>' +
+                            '<option value="used"'        + (cond === 'used'        ? ' selected' : '') + '>' + t('conditionUsed')        + '</option>' +
+                            '<option value="repairable"'  + (cond === 'repairable'  ? ' selected' : '') + '>' + t('conditionRepairable')  + '</option>' +
+                            '<option value="maintenance"' + (cond === 'maintenance' ? ' selected' : '') + '>' + t('conditionMaintenance') + '</option>' +
+                            '<option value="damaged"'     + (cond === 'damaged'     ? ' selected' : '') + '>' + t('conditionDamaged')     + '</option>' +
+                        '</select>' +
                     '</div>' +
                     '<div class="equip-detail-field equip-detail-field-full">' +
                         '<label><i class="fas fa-align-left"></i> ' + t('description') + '</label>' +
@@ -2665,19 +3112,29 @@ async function renderItemsTab() {
     var container = document.getElementById('deptItemsContainer');
     container.innerHTML = '';
 
-    if (items.length === 0) {
+    // Filter chips bar (condition) — render even when there are zero items so
+    // the user can spot that the underlying filter is hiding rows.
+    var filterBar = document.getElementById('deptItemsFilter');
+    if (filterBar) renderDeptCondFilter(filterBar, items, 'items');
+
+    var visible = (window._deptItemsCondFilter && window._deptItemsCondFilter !== 'all')
+        ? items.filter(function(it) { return normalizeCondition(it.condition) === window._deptItemsCondFilter; })
+        : items;
+
+    if (visible.length === 0) {
         container.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><i class="fas fa-tools"></i><p>' + t('noItems') + '</p></div>';
         return;
     }
 
-    items.forEach(function(item, idx) {
+    visible.forEach(function(item, idx) {
         var active = getActiveCustody(item);
         var isOut = !!active;
         var statusLabel = isOut ? t('outOfDeptCustody') : (item.covenant_status || t('active'));
         var statusCls = isOut ? 'out-custody' : 'active';
+        var cond = normalizeCondition(item.condition);
 
         var card = document.createElement('div');
-        card.className = 'dept-item-card-v2' + (isOut ? ' dept-item-out-custody' : '');
+        card.className = 'dept-item-card-v2 cond-card-' + cond + (isOut ? ' dept-item-out-custody' : '');
         card.style.animationDelay = (idx * 0.05) + 's';
         card.style.cursor = 'pointer';
         card.onclick = function(ev) {
@@ -2686,11 +3143,13 @@ async function renderItemsTab() {
         };
         var custodianName = isOut ? (active.to_employee_name || item.employee_name || '') : '';
         var custodyDates = isOut ? ((active.start_date || active.transfer_date || '') + (active.end_date ? ' → ' + active.end_date : '')) : '';
+        var safeName = escapeHtml(item.name || '').replace(/'/g, "\\'");
         card.innerHTML =
             (isOut ? '<div class="out-custody-banner"><i class="fas fa-user-clock"></i> ' + t('outOfDeptCustody') + '</div>' : '') +
             '<div class="dept-item-v2-visual"' + (item.image ? ' onclick="event.stopPropagation();openImageViewer(\'' + escapeHtml(item.image) + '\')" style="cursor:pointer"' : '') + '>' +
                 (item.image ? '<img src="' + escapeHtml(item.image) + '" onerror="this.parentElement.innerHTML=\'<i class=\\\'fas fa-cube\\\'></i>\'">' : '<i class="fas fa-cube"></i>') +
                 '<div class="dept-item-v2-qty"><span>x' + Number(item.qty) + '</span></div>' +
+                conditionBadgeHtml(cond) +
             '</div>' +
             '<div class="dept-item-v2-body">' +
                 '<div class="dept-item-v2-name">' + escapeHtml(item.name) + '</div>' +
@@ -2705,9 +3164,11 @@ async function renderItemsTab() {
                 '</div>' +
             '</div>' +
             '<div class="dept-item-v2-actions">' +
-                '<button class="btn-icon btn-transfer-custody" onclick="event.stopPropagation();openCovenantModal({id:' + item.id + ',name:\'' + escapeHtml(item.name || '').replace(/'/g, "\\'") + '\'})" title="' + t('transferCustody') + '"><i class="fas fa-exchange-alt"></i></button>' +
+                '<button class="btn-icon btn-transfer-custody" onclick="event.stopPropagation();openCovenantModal({id:' + item.id + ',name:\'' + safeName + '\'})" title="' + t('transferCustody') + '"><i class="fas fa-exchange-alt"></i></button>' +
+                '<button class="btn-icon btn-transfer-record" onclick="event.stopPropagation();openTransferDialog({kind:\'dept-item\',id:' + item.id + ',name:' + JSON.stringify(item.name || '') + ',departmentId:' + (currentDeptId || 0) + '})" title="' + t('transferAction') + '"><i class="fas fa-arrow-right-arrow-left"></i></button>' +
+                '<button class="btn-icon" onclick="event.stopPropagation();openEditDeptItem(\'item\',' + item.id + ')" title="' + t('editBtn') + '"><i class="fas fa-pen"></i></button>' +
                 (isOut ? '<button class="btn-icon btn-return-custody" onclick="event.stopPropagation();returnCustody(' + item.id + ')" title="' + t('markReturned') + '"><i class="fas fa-undo"></i></button>' : '') +
-                '<button class="btn-icon delete" onclick="event.stopPropagation();deleteDeptItem(' + item.id + ')"><i class="fas fa-trash-alt"></i></button>' +
+                '<button class="btn-icon delete" onclick="event.stopPropagation();confirmDeleteDeptItem(\'item\',' + item.id + ')" title="' + t('delete') + '"><i class="fas fa-trash-alt"></i></button>' +
             '</div>';
         container.appendChild(card);
     });
@@ -2716,12 +3177,14 @@ async function renderItemsTab() {
 async function addEquipment() {
     var name = document.getElementById('newEquipName').value.trim();
     if (!name) return;
+    var condEl = document.getElementById('newEquipCondition');
     try {
         var newItem = await API.addDeptEquipment(currentDeptId, {
             name: name,
             qty: parseInt(document.getElementById('newEquipQty').value) || 1,
             description: document.getElementById('newEquipDesc').value.trim(),
-            purpose: document.getElementById('newEquipPurpose').value.trim()
+            purpose: document.getElementById('newEquipPurpose').value.trim(),
+            condition: condEl ? normalizeCondition(condEl.value) : 'new'
         });
         var fileInput = document.getElementById('newEquipFile');
         if (fileInput.files[0]) {
@@ -2790,14 +3253,104 @@ async function updateDeptItemInline(id, data) {
     catch (e) { showToast(e.message, 'error'); currentDeptData = await API.getDepartment(currentDeptId); await renderEquipmentTab(); await renderItemsTab(); }
 }
 
+// Render the small condition filter chip bar above an items or equipment list.
+// 'list' is either 'items' or 'equipment' so we can store the active filter
+// independently per list. Reused for both dept tabs.
+function renderDeptCondFilter(bar, items, list) {
+    var key = list === 'equipment' ? '_deptEquipCondFilter' : '_deptItemsCondFilter';
+    var cur = window[key] || 'all';
+    var counts = { all: items.length, new: 0, used: 0, damaged: 0, maintenance: 0, repairable: 0 };
+    items.forEach(function(it) { counts[normalizeCondition(it.condition)]++; });
+    var chips = [
+        { key: 'all',         label: t('allConditions'),        icon: '<i class="fas fa-layer-group"></i>' },
+        { key: 'new',         label: t('conditionNew'),         icon: '<i class="fas fa-star"></i>' },
+        { key: 'used',        label: t('conditionUsed'),        icon: '<i class="fas fa-history"></i>' },
+        { key: 'repairable',  label: t('conditionRepairable'),  icon: '<i class="fas fa-tools"></i>' },
+        { key: 'maintenance', label: t('conditionMaintenance'), icon: '<i class="fas fa-wrench"></i>' },
+        { key: 'damaged',     label: t('conditionDamaged'),     icon: '<i class="fas fa-exclamation-triangle"></i>' }
+    ];
+    bar.innerHTML = '<span class="cond-filter-label">' + escapeHtml(t('filterByCondition')) + ':</span>' +
+        chips.map(function(c) {
+            return '<button type="button" class="cond-chip cond-chip-' + c.key + (cur === c.key ? ' active' : '') +
+                '" onclick="setDeptCondFilter(\'' + list + '\',\'' + c.key + '\')">' +
+                c.icon + ' <span>' + escapeHtml(c.label) + '</span>' +
+                ' <span class="cond-chip-count">' + counts[c.key] + '</span></button>';
+        }).join('');
+}
+
+function setDeptCondFilter(list, key) {
+    if (key !== 'all' && ITEM_CONDITIONS.indexOf(key) === -1) return;
+    window[(list === 'equipment' ? '_deptEquipCondFilter' : '_deptItemsCondFilter')] = key;
+    if (list === 'equipment') renderEquipmentTab();
+    else renderItemsTab();
+}
+
+// Open the edit dialog for either a dept item or a piece of equipment.
+async function openEditDeptItem(kind, id) {
+    if (!id || (kind !== 'item' && kind !== 'equipment')) return;
+    var rec = null;
+    var list = kind === 'equipment' ? (currentDeptData && currentDeptData.equipment) : (currentDeptData && currentDeptData.items);
+    if (list && Array.isArray(list)) rec = list.find(function(x) { return Number(x.id) === Number(id); });
+    if (!rec) { showToast(t('failedLoad'), 'error'); return; }
+
+    document.getElementById('editDeptItemId').value = rec.id;
+    document.getElementById('editDeptItemKind').value = kind;
+    document.getElementById('editDeptItemName').value = rec.name || '';
+    document.getElementById('editDeptItemDesc').value = rec.description || '';
+    document.getElementById('editDeptItemQty').value = rec.qty || 1;
+    document.getElementById('editDeptItemCondition').value = normalizeCondition(rec.condition);
+    var titleEl = document.getElementById('editDeptItemTitle');
+    if (titleEl) titleEl.textContent = kind === 'equipment' ? t('editEquipmentTitle') : t('editItemTitle');
+    resetImagePicker('editDeptItem', rec.image || null);
+    document.getElementById('editDeptItemModal').classList.add('active');
+}
+
+async function saveEditDeptItem() {
+    var id = document.getElementById('editDeptItemId').value;
+    var kind = document.getElementById('editDeptItemKind').value;
+    if (!id) return;
+    var payload = {
+        name: document.getElementById('editDeptItemName').value.trim(),
+        description: document.getElementById('editDeptItemDesc').value.trim(),
+        qty: Math.max(1, parseInt(document.getElementById('editDeptItemQty').value) || 1),
+        condition: document.getElementById('editDeptItemCondition').value
+    };
+    if (!payload.name) { showToast(t('itemName'), 'error'); return; }
+    try {
+        if (kind === 'equipment') await API.updateDeptEquipment(id, payload);
+        else                       await API.updateDeptItem(id, payload);
+
+        var picked = getPickedFile('editDeptItem');
+        if (picked) {
+            if (kind === 'equipment') await API.uploadDeptEquipmentImage(id, picked);
+            else                       await API.uploadDeptItemImage(id, picked);
+        }
+
+        closeModal('editDeptItemModal');
+        currentDeptData = await API.getDepartment(currentDeptId);
+        await renderEquipmentTab();
+        await renderItemsTab();
+        showToast(t('added'));
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function confirmDeleteDeptItem(kind, id) {
+    var msg = kind === 'equipment' ? t('deleteEquipmentConfirm') : t('deleteItemConfirm');
+    if (!confirm(msg)) return;
+    if (kind === 'equipment') return deleteEquipment(id);
+    return deleteDeptItem(id);
+}
+
 async function addDeptItem() {
     var name = document.getElementById('newDeptItemName').value.trim();
     if (!name) return;
+    var condEl = document.getElementById('newDeptItemCondition');
     try {
         var newItem = await API.addDeptItem(currentDeptId, {
             name: name,
             description: document.getElementById('newDeptItemDesc').value.trim(),
-            qty: parseInt(document.getElementById('newDeptItemQty').value) || 1
+            qty: parseInt(document.getElementById('newDeptItemQty').value) || 1,
+            condition: condEl ? normalizeCondition(condEl.value) : 'new'
         });
         var fileInput = document.getElementById('newDeptItemFile');
         if (fileInput.files[0]) {
