@@ -1618,7 +1618,7 @@ async function renderZoneDetail() {
         if (zone.description) html += '<div class="zone-detail-desc">' + escapeHtml(zone.description) + '</div>';
         html += '</div>';
         html += '<button class="btn-icon zone-edit-btn" onclick="printZone(' + zone.id + ')" title="' + t('print') + '" style="margin-right:6px"><i class="fas fa-print" style="color:' + color + '"></i></button>';
-        html += '<button class="btn-icon zone-edit-btn zone-transfer-btn" onclick="openTransferDialog({kind:\'wh-zone\',id:' + zone.id + ',name:' + JSON.stringify(zone.name) + ',itemCount:' + (zone.items || []).length + '})" title="' + t('transferZone') + '" aria-label="' + t('transferZone') + '"><i class="fas fa-arrow-right-arrow-left" style="color:' + color + '"></i></button>';
+        html += '<button class="btn-icon zone-edit-btn zone-transfer-btn" onclick="openWhZoneTransfer(' + zone.id + ')" title="' + t('transferZone') + '" aria-label="' + t('transferZone') + '"><i class="fas fa-arrow-right-arrow-left" style="color:' + color + '"></i></button>';
         html += '<button class="btn-icon zone-edit-btn" onclick="openEditZoneModal()" title="' + t('editZoneBtn') + '" aria-label="' + t('editZoneBtn') + '"><i class="fas fa-pen" style="color:' + color + '"></i></button>';
         html += '</div>';
 
@@ -1638,7 +1638,7 @@ async function renderZoneDetail() {
                     : '<svg class="wh-svg-icon wh-svg-area" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>';
                 html += '<div class="zone-area-card' + (area.image ? ' has-image' : '') + '" onclick="openAreaItems(' + area.id + ',\'' + escapeHtml(area.name).replace(/'/g, "\\'") + '\')" tabindex="0" role="button" aria-label="' + escapeHtml(area.name) + '">';
                 html += '<button class="zone-area-edit" onclick="event.stopPropagation();openEditAreaModal(' + area.id + ',\'' + escapeHtml(area.name).replace(/'/g, "\\'") + '\',\'' + escapeHtml(area.description || '').replace(/'/g, "\\'") + '\')" title="' + t('editBtn') + '" aria-label="' + t('editBtn') + '"><i class="fas fa-pen"></i></button>';
-                html += '<button class="zone-area-transfer" onclick="event.stopPropagation();openTransferDialog({kind:\'wh-area\',id:' + area.id + ',name:' + JSON.stringify(area.name) + ',itemCount:' + (area.items || []).length + '})" title="' + t('transferSpace') + '" aria-label="' + t('transferSpace') + '"><i class="fas fa-arrow-right-arrow-left"></i></button>';
+                html += '<button class="zone-area-transfer" onclick="event.stopPropagation();openWhAreaTransfer(' + area.id + ')" title="' + t('transferSpace') + '" aria-label="' + t('transferSpace') + '"><i class="fas fa-arrow-right-arrow-left"></i></button>';
                 html += '<button class="zone-area-delete" onclick="event.stopPropagation();deleteArea(' + area.id + ')" title="' + t('deleteBtn') + '" aria-label="' + t('deleteBtn') + '"><i class="fas fa-times"></i></button>';
                 html += '<div class="zone-area-card-icon zone-card-icon-fancy" style="background:' + color + '">' + areaIcon + '</div>';
                 html += '<div class="zone-area-card-name">' + escapeHtml(area.name) + '</div>';
@@ -2152,6 +2152,43 @@ function _xferSubtitle(source) {
         return source.kind === 'dept-item' ? t('moveToOtherDept') : t('moveToOtherDept');
     }
     return '';
+}
+
+// Id-only entry points for inline onclick handlers. They look up the source
+// from already-loaded state. We keep these as small wrappers so we never have
+// to JSON.stringify a name into an HTML attribute (which leaks unescaped
+// double-quotes and silently breaks the handler).
+function openWhZoneTransfer(id) {
+    var z = currentZoneData;
+    if (!z || Number(z.id) !== Number(id)) {
+        // Fallback if currentZoneData isn't the one being referenced — refetch.
+        return API.getZone(id).then(function(zone) {
+            currentZoneData = zone;
+            openTransferDialog({ kind: 'wh-zone', id: zone.id, name: zone.name, itemCount: (zone.items || []).length });
+        }).catch(function(e) { showToast(e.message, 'error'); });
+    }
+    openTransferDialog({ kind: 'wh-zone', id: z.id, name: z.name, itemCount: (z.items || []).length });
+}
+
+function openWhAreaTransfer(areaId) {
+    var area = null;
+    if (currentZoneData && currentZoneData.areas) {
+        area = currentZoneData.areas.find(function(a) { return Number(a.id) === Number(areaId); });
+    }
+    if (!area) { showToast(t('failedLoad'), 'error'); return; }
+    openTransferDialog({ kind: 'wh-area', id: area.id, name: area.name, itemCount: (area.items || []).length });
+}
+
+function openDeptItemTransfer(id) {
+    var rec = (currentDeptData && (currentDeptData.items || []).find(function(x) { return Number(x.id) === Number(id); })) || null;
+    if (!rec) return;
+    openTransferDialog({ kind: 'dept-item', id: rec.id, name: rec.name || '', departmentId: currentDeptId });
+}
+
+function openDeptEquipmentTransfer(id) {
+    var rec = (currentDeptData && (currentDeptData.equipment || []).find(function(x) { return Number(x.id) === Number(id); })) || null;
+    if (!rec) return;
+    openTransferDialog({ kind: 'dept-equipment', id: rec.id, name: rec.name || '', departmentId: currentDeptId });
 }
 
 async function openTransferDialog(source) {
@@ -2988,10 +3025,7 @@ async function renderEquipmentTab() {
             '</div>' +
             (period ? '<div class="equip-card-period"><i class="fas fa-calendar-alt"></i> ' + escapeHtml(period) + '</div>' : '') +
             '<div class="equip-card-actions">' +
-                '<button class="equip-action equip-action-transfer" onclick="event.stopPropagation();openCovenantModal({id:' + item.id + ',name:\'' + safeName + '\',entity_type:\'equipment\'})" title="' + t('transferCustody') + '">' +
-                    '<i class="fas fa-exchange-alt"></i><span>' + t('transferBtn') + '</span>' +
-                '</button>' +
-                '<button class="equip-action equip-action-transfer" onclick="event.stopPropagation();openTransferDialog({kind:\'dept-equipment\',id:' + item.id + ',name:' + JSON.stringify(item.name || '') + ',departmentId:' + (currentDeptId || 0) + '})" title="' + t('transferAction') + '">' +
+                '<button class="equip-action equip-action-transfer" onclick="event.stopPropagation();openCovenantModal({id:' + item.id + ',name:\'' + safeName + '\',entity_type:\'equipment\'})" title="' + t('transferAction') + '">' +
                     '<i class="fas fa-arrow-right-arrow-left"></i><span>' + t('transferAction') + '</span>' +
                 '</button>' +
                 '<button class="equip-action equip-action-history" onclick="event.stopPropagation();openCovenantModal({id:' + item.id + ',name:\'' + safeName + '\',entity_type:\'equipment\'})" title="' + t('history') + '">' +
@@ -3164,8 +3198,7 @@ async function renderItemsTab() {
                 '</div>' +
             '</div>' +
             '<div class="dept-item-v2-actions">' +
-                '<button class="btn-icon btn-transfer-custody" onclick="event.stopPropagation();openCovenantModal({id:' + item.id + ',name:\'' + safeName + '\'})" title="' + t('transferCustody') + '"><i class="fas fa-exchange-alt"></i></button>' +
-                '<button class="btn-icon btn-transfer-record" onclick="event.stopPropagation();openTransferDialog({kind:\'dept-item\',id:' + item.id + ',name:' + JSON.stringify(item.name || '') + ',departmentId:' + (currentDeptId || 0) + '})" title="' + t('transferAction') + '"><i class="fas fa-arrow-right-arrow-left"></i></button>' +
+                '<button class="btn-icon btn-transfer-custody" onclick="event.stopPropagation();openCovenantModal({id:' + item.id + ',name:\'' + safeName + '\'})" title="' + t('transferAction') + '"><i class="fas fa-arrow-right-arrow-left"></i></button>' +
                 '<button class="btn-icon" onclick="event.stopPropagation();openEditDeptItem(\'item\',' + item.id + ')" title="' + t('editBtn') + '"><i class="fas fa-pen"></i></button>' +
                 (isOut ? '<button class="btn-icon btn-return-custody" onclick="event.stopPropagation();returnCustody(' + item.id + ')" title="' + t('markReturned') + '"><i class="fas fa-undo"></i></button>' : '') +
                 '<button class="btn-icon delete" onclick="event.stopPropagation();confirmDeleteDeptItem(\'item\',' + item.id + ')" title="' + t('delete') + '"><i class="fas fa-trash-alt"></i></button>' +
@@ -3449,14 +3482,45 @@ async function updateDeptHistory(id, data) {
 
 // ============ Covenant History Modal ============
 function setTransferMode(mode) {
-    currentTransferMode = mode === 'department' ? 'department' : 'employee';
+    var allowed = { employee: 1, department: 1, 'swap-list': 1 };
+    currentTransferMode = allowed[mode] ? mode : 'employee';
     document.querySelectorAll('.transfer-mode-btn').forEach(function(b){
         b.classList.toggle('active', b.dataset.mode === currentTransferMode);
     });
     var empF = document.getElementById('covenantEmployeeField');
     var depF = document.getElementById('covenantDepartmentField');
-    if (empF) empF.style.display = currentTransferMode === 'employee' ? '' : 'none';
-    if (depF) depF.style.display = currentTransferMode === 'department' ? '' : 'none';
+    var swapF = document.getElementById('covenantSwapField');
+    if (empF)  empF.style.display  = currentTransferMode === 'employee'   ? '' : 'none';
+    if (depF)  depF.style.display  = currentTransferMode === 'department' ? '' : 'none';
+    if (swapF) swapF.style.display = currentTransferMode === 'swap-list'  ? '' : 'none';
+
+    // Hide the date / condition / notes block when swap-list is selected — those
+    // fields belong to custody transfers, not list-type swaps. Keep them visible
+    // for the other two modes.
+    var hideForSwap = currentTransferMode === 'swap-list';
+    ['covenantTransferDate','covenantTransferEndDate','covenantTransferNotes','covenantConditionNotes'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        var field = el.closest('.form-field');
+        if (field) field.style.display = hideForSwap ? 'none' : '';
+    });
+    var radios = document.querySelector('.condition-radio-group');
+    if (radios) {
+        var rf = radios.closest('.form-field');
+        if (rf) rf.style.display = hideForSwap ? 'none' : '';
+    }
+    var notesWrap = document.getElementById('covenantConditionNotesWrap');
+    if (notesWrap && hideForSwap) notesWrap.style.display = 'none';
+
+    // Update swap preview text based on the source entity.
+    if (currentTransferMode === 'swap-list') {
+        var preview = document.getElementById('covenantSwapPreviewText');
+        if (preview) {
+            preview.textContent = currentCovenantEntity === 'equipment'
+                ? t('switchToItems')
+                : t('switchToEquipment');
+        }
+    }
 }
 
 async function openCovenantModal(item) {
@@ -3483,6 +3547,7 @@ async function openCovenantModal(item) {
 
     // Populate department dropdown (exclude current department for items, or just exclude no dept)
     var deptSelect = document.getElementById('covenantTransferToDept');
+    var swapDeptSelect = document.getElementById('covenantSwapDept');
     if (deptSelect) {
         deptSelect.innerHTML = '<option value="">' + t('selectDepartment') + '</option>';
         try {
@@ -3491,6 +3556,18 @@ async function openCovenantModal(item) {
                 if (d.id === currentDeptId) return;
                 deptSelect.innerHTML += '<option value="' + d.id + '">' + escapeHtml(d.name) + '</option>';
             });
+            // Swap-list dropdown: include the current dept first (default = same dept).
+            if (swapDeptSelect) {
+                swapDeptSelect.innerHTML = '';
+                if (currentDeptId) {
+                    var current = allDepts.find(function(d) { return Number(d.id) === Number(currentDeptId); });
+                    swapDeptSelect.innerHTML += '<option value="' + currentDeptId + '">' + escapeHtml((current && current.name) || t('thisDepartment')) + '</option>';
+                }
+                allDepts.forEach(function(d) {
+                    if (Number(d.id) === Number(currentDeptId)) return;
+                    swapDeptSelect.innerHTML += '<option value="' + d.id + '">' + escapeHtml(d.name) + '</option>';
+                });
+            }
         } catch (e) { /* ignore */ }
     }
 
@@ -3569,6 +3646,30 @@ async function openCovenantModal(item) {
 }
 
 async function transferCovenant() {
+    // Swap-list mode is a hard move, not a custody transfer — it bypasses the
+    // date/condition/notes flow and uses the dedicated transfer-record route.
+    if (currentTransferMode === 'swap-list') {
+        var swapDept = document.getElementById('covenantSwapDept').value;
+        if (!swapDept) { showToast(t('selectDepartment'), 'error'); return; }
+        var targetList = currentCovenantEntity === 'equipment' ? 'items' : 'equipment';
+        try {
+            if (currentCovenantEntity === 'equipment') {
+                await API.transferDeptEquipment(currentCovenantItemId, { target_department_id: parseInt(swapDept), target_list: targetList });
+            } else {
+                await API.transferDeptItem(currentCovenantItemId, { target_department_id: parseInt(swapDept), target_list: targetList });
+            }
+            closeModal('covenantModal');
+            if (currentDeptId && currentPage === 'dept-detail') {
+                currentDeptData = await API.getDepartment(currentDeptId);
+                await renderEquipmentTab();
+                await renderItemsTab();
+                renderIncomingTab();
+            }
+            showToast(t('custodyTransferred'));
+        } catch (e) { showToast(e.message, 'error'); }
+        return;
+    }
+
     var startDate = document.getElementById('covenantTransferDate').value;
     var endDateEl = document.getElementById('covenantTransferEndDate');
     var endDate = endDateEl ? endDateEl.value : '';
