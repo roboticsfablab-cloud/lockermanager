@@ -988,6 +988,97 @@ textarea {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
 }
+
+/* Render the trigger as a custom-looking dropdown so a chevron sits inside the
+   field on the trailing edge. The <option> popup is OS-rendered and inherits
+   the colors below. We do a light/dark themed chevron via mask so it follows
+   the selected theme without two SVGs. */
+.form-group select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 34px;
+  cursor: pointer;
+}
+[dir="rtl"] .form-group select {
+  background-position: left 12px center;
+  padding-right: 14px;
+  padding-left: 34px;
+}
+.form-group select:hover { border-color: rgba(139, 92, 246, 0.55); }
+
+/* OS-rendered <option> popup. Chrome/Edge/Firefox honour these; Safari ignores
+   them but falls back to readable system colors anyway. The accent on :checked
+   gives the picked item the same glow as our other "selected" surfaces. */
+select option,
+.form-group select option,
+.add-item-bar select option,
+.area-add-condition option,
+.transfer-form-grid select option {
+  background-color: var(--bg-card, #1a1633);
+  color: var(--text-primary, #e2e8f0);
+  padding: 8px 12px;
+}
+select option:checked,
+.form-group select option:checked {
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  color: #fff;
+  font-weight: 600;
+}
+select option:hover,
+.form-group select option:hover {
+  background-color: rgba(139, 92, 246, 0.18);
+}
+[data-theme="light"] select option,
+[data-theme="light"] .form-group select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+/* Polish the standalone selects used outside .form-group (add bars, toolbars).
+   Same treatment as form-group selects so the look is uniform. */
+.add-item-bar select,
+.area-add-condition,
+.equip-filter select,
+#equipFilter,
+#historyEmpSelect,
+#historyStatus,
+#newDeptItemCondition,
+#newEquipCondition {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: var(--bg-input);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+[dir="rtl"] .add-item-bar select,
+[dir="rtl"] .area-add-condition,
+[dir="rtl"] .equip-filter select,
+[dir="rtl"] #equipFilter {
+  background-position: left 10px center;
+  padding-right: 12px;
+  padding-left: 30px;
+}
+.add-item-bar select:focus,
+.area-add-condition:focus,
+.equip-filter select:focus,
+#equipFilter:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+}
 .form-row {
   display: flex;
   gap: 8px;
@@ -7141,10 +7232,32 @@ textarea.input {
 .transfer-form-grid .form-field select {
     padding: 8px 10px;
     border: 1px solid var(--border);
-    background: var(--bg-secondary, var(--bg));
-    color: var(--text);
+    background: var(--bg-input, var(--bg-secondary, var(--bg)));
+    color: var(--text-primary, var(--text));
     border-radius: 8px;
     font-size: 13px;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.transfer-form-grid .form-field select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 30px;
+    cursor: pointer;
+}
+[dir="rtl"] .transfer-form-grid .form-field select {
+    background-position: left 10px center;
+    padding-right: 12px;
+    padding-left: 30px;
+}
+.transfer-form-grid .form-field input:focus,
+.transfer-form-grid .form-field select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
 }
 .condition-radio-group {
     display: flex;
