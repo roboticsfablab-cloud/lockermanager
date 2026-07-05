@@ -1694,9 +1694,13 @@ function openAreaItems(areaId, areaName) {
             var whHl = highlightWarehouseItemId == item.id ? ' wh-item-hl' : '';
             card.className = 'area-item-card cond-card-' + cond + (item.custody_id ? ' area-item-custody' : '') + whHl;
             card.innerHTML =
-                '<button class="area-item-transfer" onclick="openTransferItemModal(' + item.id + ',\'' + escapeHtml(item.name).replace(/\\/g,"\\\\").replace(/\'/g,"\\\'") + '\')" title="' + t('transferItem') + '" aria-label="' + t('transferItem') + '"><i class="fas fa-exchange-alt"></i></button>' +
-                '<button class="area-item-custody-btn ' + (item.custody_id ? 'has-custody' : '') + '" onclick="openItemCustodyModal(' + item.id + ',\'' + escapeHtml(item.name).replace(/\\/g,"\\\\").replace(/\'/g,"\\\'") + '\',\'warehouse_item\')" title="' + (t('transferCustody') || 'Custody') + '" aria-label="' + (t('transferCustody') || 'Custody') + '"><i class="fas ' + (item.custody_id ? 'fa-hand-holding' : 'fa-hand-holding-box') + '"></i></button>' +
-                '<button class="area-item-delete" onclick="deleteZoneItem(' + item.id + ')" title="' + t('delete') + '" aria-label="' + t('delete') + '"><i class="fas fa-times"></i></button>' +
+                '<div class="area-item-action-bar">' +
+                    '<div class="area-item-action-group">' +
+                        '<button class="area-item-action-btn area-item-transfer-btn" onclick="openTransferItemModal(' + item.id + ',\'' + escapeHtml(item.name).replace(/\\/g,"\\\\").replace(/\'/g,"\\\'") + '\')" title="' + t('transferItem') + '" aria-label="' + t('transferItem') + '"><i class="fas fa-exchange-alt"></i><span>' + (t('transferItem') || 'Transfer') + '</span></button>' +
+                        '<button class="area-item-action-btn area-item-custody-action-btn ' + (item.custody_id ? 'has-custody' : '') + '" onclick="openItemCustodyModal(' + item.id + ',\'' + escapeHtml(item.name).replace(/\\/g,"\\\\").replace(/\'/g,"\\\'") + '\',\'warehouse_item\')" title="' + (t('transferCustody') || 'Custody') + '" aria-label="' + (t('transferCustody') || 'Custody') + '"><i class="fas ' + (item.custody_id ? 'fa-hand-holding' : 'fa-hand-holding-box') + '"></i><span>' + (t('custody') || 'Custody') + '</span></button>' +
+                    '</div>' +
+                    '<button class="area-item-action-btn area-item-delete-btn" onclick="deleteZoneItem(' + item.id + ')" title="' + t('delete') + '" aria-label="' + t('delete') + '"><i class="fas fa-trash-alt"></i></button>' +
+                '</div>' +
                 '<div class="area-item-image" ' + (item.image ? 'onclick="openImageViewer(\'' + escapeHtml(item.image) + '\')" style="cursor:pointer"' : '') + '>' +
                     (item.image
                         ? '<img src="' + escapeHtml(item.image) + '" alt="' + escapeHtml(item.name) + '" loading="lazy" decoding="async" onerror="this.outerHTML=\'<svg class=&quot;wh-svg-icon wh-svg-item&quot; viewBox=&quot;0 0 24 24&quot; aria-hidden=&quot;true&quot;><path d=&quot;M12 2l9 5v10l-9 5-9-5V7zM12 4.2L5 8v8l7 3.8 7-3.8V8z&quot;/></svg>\'">'
