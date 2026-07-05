@@ -51,7 +51,7 @@ module.exports = function (db) {
         const lockerResult = await db.execute({ sql: 'SELECT * FROM lockers WHERE id = ?', args: [req.params.id] });
         if (lockerResult.rows.length === 0) return res.status(404).json({ error: 'Locker not found' });
 
-        const itemsResult = await db.execute({ sql: 'SELECT * FROM items WHERE locker_id = ? ORDER BY created_at', args: [req.params.id] });
+        const itemsResult = await db.execute({ sql: `SELECT i.*, ch.id AS custody_id, ch.to_employee_id AS custody_emp_id, e.name AS custody_emp_name, ch.to_department_id AS custody_dept_id, d.name AS custody_dept_name, ch.start_date AS custody_start, ch.end_date AS custody_end FROM items i LEFT JOIN covenant_history ch ON ch.item_id=i.id AND ch.entity_type='locker_item' AND ch.status='active' LEFT JOIN employees e ON e.id=ch.to_employee_id LEFT JOIN departments d ON d.id=ch.to_department_id WHERE i.locker_id=? ORDER BY i.created_at`, args: [req.params.id] });
         res.json({ ...lockerResult.rows[0], items: itemsResult.rows });
     });
 

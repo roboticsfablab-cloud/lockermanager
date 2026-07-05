@@ -805,7 +805,7 @@ function renderSearchResults(container, data, isGlobal) {
         container.innerHTML += '<div class="search-section-title">' + t('items') + '</div>';
         data.warehouse_items.forEach(function(wi) {
             var path = escapeHtml(wi.zone_name || '') + (wi.area_name ? ' &rsaquo; ' + escapeHtml(wi.area_name) : '') + ' &rsaquo; ' + escapeHtml(wi.name);
-            container.innerHTML += '<div class="search-item" onclick="pickSearchResult(this);openWarehouseItemFromSearch(' + wi.zone_id + ',' + (wi.area_id || 'null') + ',\'' + escapeHtml(wi.area_name || '').replace(/\'/g, "\\\'") + '\')">' +
+            container.innerHTML += '<div class="search-item" onclick="pickSearchResult(this);highlightWarehouseItemId=' + wi.id + ';openWarehouseItemFromSearch(' + wi.zone_id + ',' + (wi.area_id || 'null') + ',\'' + escapeHtml(wi.area_name || '').replace(/\'/g, "\\\'") + '\')">' +
                 '<svg class="wh-svg-icon wh-svg-item" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l9 5v10l-9 5-9-5V7zM12 4.2L5 8v8l7 3.8 7-3.8V8z"/><path d="M12 8.5l3.5 1.9v3.2L12 15.5l-3.5-1.9V10.4z"/></svg>' +
                 '<div class="search-item-text"><div class="search-item-name">' + escapeHtml(wi.name) +
                 ' <span class="search-level-badge level-item">' + t('itemName') + '</span></div>' +
@@ -1001,7 +1001,7 @@ function renderItems() {
             var hl = highlightItemId == item.id ? ' lk-hl' : '';
             var pct = ms > 0 ? Math.min(100, Math.round((q / (ms * 3)) * 100)) : 100;
             var card = document.createElement('div');
-            card.className = 'lk-item' + hl;
+            card.className = 'lk-item' + hl + (item.custody_id ? ' lk-item-custody' : '');
             card.style.animationDelay = (idx * 0.05) + 's';
             card.innerHTML =
                 '<div class="lk-item-color-bar ' + status.qcls + '"></div>' +
@@ -1014,6 +1014,7 @@ function renderItems() {
                         '<span class="lk-item-status ' + status.qcls + '">' + status.icon + ' ' + status.label + '</span>' +
                     '</div>' +
                     '<input type="text" class="lk-item-desc" style="text-align:' + dir + '" value="' + escapeHtml(item.description || '') + '" placeholder="' + t('descriptionPlaceholder') + '" onchange="updateItem(' + item.id + ',{description:this.value})">' +
+                    (item.custody_id ? '<div class="lk-custody-info"><i class="fas fa-hand-holding"></i> ' + escapeHtml(item.custody_emp_name || item.custody_dept_name || '') + (item.custody_start ? ' · ' + item.custody_start : '') + (item.custody_end ? ' → ' + item.custody_end : '') + '</div>' : '') +
                     '<div class="lk-item-meters">' +
                         '<div class="lk-item-meter">' +
                             '<span class="lk-meter-label"><i class="fas fa-cubes"></i> ' + t('stock') + '</span>' +
@@ -1031,6 +1032,7 @@ function renderItems() {
                     '<button class="lk-act lk-act-minus" onclick="changeQty(' + item.id + ',-1)" title="-1"><i class="fas fa-minus"></i></button>' +
                     '<label class="lk-act lk-act-cam" title="Image"><i class="fas fa-camera"></i><input type="file" accept="image/*" style="display:none" onchange="uploadItemImage(' + item.id + ',this.files[0])"></label>' +
                     '<button class="lk-act lk-act-move" title="' + t('moveItem') + '" onclick="openMoveItemModal(' + item.id + ',\'' + escapeHtml(item.name).replace(/\\/g,"\\\\").replace(/'/g,"\\'") + '\')"><i class="fas fa-dolly"></i></button>' +
+                    '<button class="lk-act lk-act-custody ' + (item.custody_id ? 'has-custody' : '') + '" title="' + escapeHtml(item.custody_id ? ((item.custody_emp_name || item.custody_dept_name || '')) : (t('transferCustody') || 'Custody')) + '" onclick="openItemCustodyModal(' + item.id + ',\'' + escapeHtml(item.name).replace(/\\/g,"\\\\").replace(/'/g,"\\'") + '\',\'locker_item\')"><i class="fas ' + (item.custody_id ? 'fa-hand-holding' : 'fa-hand-holding-box') + '"></i></button>' +
                     '<button class="lk-act lk-act-del" onclick="removeItem(' + item.id + ')"><i class="fas fa-trash-alt"></i></button>' +
                 '</div>';
             listEl.appendChild(card);
@@ -1047,11 +1049,12 @@ function renderItems() {
             var q = Number(item.qty), ms = Number(item.min_stock), status = getStatus(q, ms);
             var hl = highlightItemId == item.id ? ' highlighted' : '';
             var card = document.createElement('div');
-            card.className = 'item-card-v2' + hl;
+            card.className = 'item-card-v2' + hl + (item.custody_id ? ' lk-item-custody' : '');
             card.style.animationDelay = (idx * 0.06) + 's';
             card.innerHTML =
                 '<div class="item-v2-toolbar">' +
                     '<button class="item-v2-tool item-v2-tool-move" title="' + t('moveItem') + '" onclick="openMoveItemModal(' + item.id + ',\'' + escapeHtml(item.name).replace(/\\/g,"\\\\").replace(/'/g,"\\'") + '\')"><i class="fas fa-dolly"></i></button>' +
+                    '<button class="item-v2-tool item-v2-tool-custody ' + (item.custody_id ? 'has-custody' : '') + '" onclick="openItemCustodyModal(' + item.id + ',\'' + escapeHtml(item.name).replace(/\\/g,"\\\\").replace(/'/g,"\\'") + '\',\'locker_item\')" title="' + (t('transferCustody') || 'Custody') + '"><i class="fas ' + (item.custody_id ? 'fa-hand-holding' : 'fa-hand-holding-box') + '"></i></button>' +
                     '<button class="item-v2-tool item-v2-tool-delete" onclick="removeItem(' + item.id + ')"><i class="fas fa-trash-alt"></i></button>' +
                 '</div>' +
                 '<div class="item-v2-visual"' + (item.image ? ' onclick="openImageViewer(\'' + escapeHtml(item.image) + '\')" style="cursor:pointer"' : '') + '>' +
@@ -1074,7 +1077,13 @@ function renderItems() {
         });
     }
 
-    if (highlightItemId) setTimeout(function() { highlightItemId = null; }, 4000);
+    if (highlightItemId) {
+        setTimeout(function() {
+            var hlEl = document.querySelector('.lk-item.lk-hl');
+            if (hlEl) hlEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+        setTimeout(function() { highlightItemId = null; }, 4000);
+    }
 }
 
 // ============ Item CRUD ============
@@ -1682,9 +1691,11 @@ function openAreaItems(areaId, areaName) {
             var q = Number(item.qty), ms = Number(item.min_stock), status = getStatus(q, ms);
             var cond = normalizeCondition(item.condition);
             var card = document.createElement('div');
-            card.className = 'area-item-card cond-card-' + cond;
+            var whHl = highlightWarehouseItemId == item.id ? ' wh-item-hl' : '';
+            card.className = 'area-item-card cond-card-' + cond + (item.custody_id ? ' area-item-custody' : '') + whHl;
             card.innerHTML =
                 '<button class="area-item-transfer" onclick="openTransferItemModal(' + item.id + ',\'' + escapeHtml(item.name).replace(/\\/g,"\\\\").replace(/\'/g,"\\\'") + '\')" title="' + t('transferItem') + '" aria-label="' + t('transferItem') + '"><i class="fas fa-exchange-alt"></i></button>' +
+                '<button class="area-item-custody-btn ' + (item.custody_id ? 'has-custody' : '') + '" onclick="openItemCustodyModal(' + item.id + ',\'' + escapeHtml(item.name).replace(/\\/g,"\\\\").replace(/\'/g,"\\\'") + '\',\'warehouse_item\')" title="' + (t('transferCustody') || 'Custody') + '" aria-label="' + (t('transferCustody') || 'Custody') + '"><i class="fas ' + (item.custody_id ? 'fa-hand-holding' : 'fa-hand-holding-box') + '"></i></button>' +
                 '<button class="area-item-delete" onclick="deleteZoneItem(' + item.id + ')" title="' + t('delete') + '" aria-label="' + t('delete') + '"><i class="fas fa-times"></i></button>' +
                 '<div class="area-item-image" ' + (item.image ? 'onclick="openImageViewer(\'' + escapeHtml(item.image) + '\')" style="cursor:pointer"' : '') + '>' +
                     (item.image
@@ -1717,12 +1728,15 @@ function openAreaItems(areaId, areaName) {
                         '<option value="repairable"'  + (cond === 'repairable'  ? ' selected' : '') + '>' + t('conditionRepairable')  + '</option>' +
                     '</select>' +
                 '</div>' +
-                '<div class="area-item-status ' + status.cls + '">' + status.icon + ' ' + status.label + '</div>';
+                '<div class="area-item-status ' + status.cls + '">' + status.icon + ' ' + status.label + '</div>' +
+                (item.custody_id ? '<div class="area-item-custody-info"><i class="fas fa-hand-holding"></i> ' + escapeHtml(item.custody_emp_name || item.custody_dept_name || '') + (item.custody_start ? ' · ' + item.custody_start : '') + (item.custody_end ? ' → ' + item.custody_end : '') + '</div>' : '');
             grid.appendChild(card);
+            if (whHl) setTimeout(function(c) { return function() { c.scrollIntoView({ behavior: 'smooth', block: 'center' }); }; }(card), 300);
         });
     }
 
     document.getElementById('areaItemsModal').classList.add('active');
+    if (highlightWarehouseItemId) setTimeout(function() { highlightWarehouseItemId = null; }, 4000);
 }
 
 // Wired into the inline <select> onchange so a condition flip can refresh the badge
@@ -2843,7 +2857,8 @@ function renderIncomingTab() {
     var dept = currentDeptData || {};
     var incomingItems = (dept.incoming_items || []).map(function(x){ return Object.assign({}, x, { entity_type: 'item' }); });
     var incomingEq = (dept.incoming_equipment || []).map(function(x){ return Object.assign({}, x, { entity_type: 'equipment' }); });
-    var all = incomingItems.concat(incomingEq);
+    var incomingStorage = (dept.incoming_storage || []).map(function(x){ return Object.assign({}, x, { _fromStorage: true }); });
+    var all = incomingItems.concat(incomingEq).concat(incomingStorage);
     var grid = document.getElementById('deptIncomingGrid');
     var badge = document.getElementById('incomingBadge');
     if (badge) {
@@ -2858,31 +2873,55 @@ function renderIncomingTab() {
     grid.innerHTML = '';
     all.forEach(function(it, idx) {
         var period = (it.start_date || it.transfer_date || '') + (it.end_date ? ' → ' + it.end_date : '');
-        var typeLabel = it.entity_type === 'equipment' ? t('equipment') : t('items');
-        var typeIcon = it.entity_type === 'equipment' ? 'fa-cog' : 'fa-cube';
         var card = document.createElement('div');
-        card.className = 'incoming-card';
         card.style.animationDelay = (idx * 0.05) + 's';
-        var safeName = escapeHtml(it.name || '').replace(/'/g, "\\'");
-        card.innerHTML =
-            '<div class="incoming-card-banner"><i class="fas fa-inbox"></i> ' + t('underTempCustody') + '</div>' +
-            '<div class="incoming-card-body">' +
-                '<div class="incoming-card-visual">' +
-                    (it.image ? '<img src="' + escapeHtml(it.image) + '">' : '<i class="fas ' + typeIcon + '"></i>') +
+
+        if (it._fromStorage) {
+            // Locker/warehouse item under temporary custody
+            var storageIcon = it.entity_type === 'locker_item' ? 'fa-box-open' : 'fa-warehouse';
+            var storageSource = it.locker_name || it.zone_name || '';
+            card.className = 'incoming-card incoming-storage-card';
+            card.innerHTML =
+                '<div class="incoming-card-banner" style="background:linear-gradient(135deg,rgba(245,158,11,0.2),rgba(245,158,11,0.05));color:#f59e0b;border-bottom:1px solid rgba(245,158,11,0.2)"><i class="fas fa-inbox"></i> ' + (t('underTempCustody') || 'Temp Custody') + '</div>' +
+                '<div class="incoming-card-body">' +
+                    '<div class="incoming-card-visual">' +
+                        (it.item_image ? '<img src="' + escapeHtml(it.item_image) + '">' : '<i class="fas ' + storageIcon + '"></i>') +
+                    '</div>' +
+                    '<div class="incoming-card-info">' +
+                        '<div class="incoming-card-name">' + escapeHtml(it.item_name || '') + '</div>' +
+                        '<div class="incoming-card-type"><i class="fas ' + storageIcon + '"></i> ' + escapeHtml(storageSource) + '</div>' +
+                        '<div class="incoming-card-period"><i class="fas fa-calendar-alt"></i> ' + escapeHtml(period) + '</div>' +
+                        (it.notes ? '<div class="incoming-card-meta"><i class="fas fa-sticky-note"></i> ' + escapeHtml(it.notes) + '</div>' : '') +
+                    '</div>' +
                 '</div>' +
-                '<div class="incoming-card-info">' +
-                    '<div class="incoming-card-name">' + escapeHtml(it.name || '') + '</div>' +
-                    '<div class="incoming-card-type"><i class="fas ' + typeIcon + '"></i> ' + escapeHtml(typeLabel) + '</div>' +
-                    (it.source_dept_name ? '<div class="incoming-card-source" onclick="if(' + (it.source_dept_id || 0) + '){currentDeptId=' + (it.source_dept_id || 0) + ';navigateTo(\'dept-detail\')}"><i class="fas fa-building"></i> ' + t('sourceDepartment') + ': <strong>' + escapeHtml(it.source_dept_name) + '</strong></div>' : '') +
-                    '<div class="incoming-card-period"><i class="fas fa-calendar-alt"></i> ' + escapeHtml(period) + '</div>' +
-                    (it.condition ? '<div class="incoming-card-meta"><i class="fas fa-clipboard-check"></i> ' + (it.condition === 'good' ? t('conditionGood') : t('conditionNotGood')) + (it.condition_notes ? ' — ' + escapeHtml(it.condition_notes) : '') + '</div>' : '') +
-                    (it.notes ? '<div class="incoming-card-meta"><i class="fas fa-sticky-note"></i> ' + escapeHtml(it.notes) + '</div>' : '') +
+                '<div class="incoming-card-actions">' +
+                    '<button class="equip-action equip-action-return" onclick="openItemCustodyModal(' + it.item_id + ',\'' + escapeHtml(it.item_name || '').replace(/'/g,"\\'") + '\',\'' + it.entity_type + '\')"><i class="fas fa-hand-holding"></i><span>' + (t('viewCustody') || 'View') + '</span></button>' +
+                '</div>';
+        } else {
+            var typeLabel = it.entity_type === 'equipment' ? t('equipment') : t('items');
+            var typeIcon = it.entity_type === 'equipment' ? 'fa-cog' : 'fa-cube';
+            var safeName = escapeHtml(it.name || '').replace(/'/g, "\\'");
+            card.className = 'incoming-card';
+            card.innerHTML =
+                '<div class="incoming-card-banner"><i class="fas fa-inbox"></i> ' + t('underTempCustody') + '</div>' +
+                '<div class="incoming-card-body">' +
+                    '<div class="incoming-card-visual">' +
+                        (it.image ? '<img src="' + escapeHtml(it.image) + '">' : '<i class="fas ' + typeIcon + '"></i>') +
+                    '</div>' +
+                    '<div class="incoming-card-info">' +
+                        '<div class="incoming-card-name">' + escapeHtml(it.name || '') + '</div>' +
+                        '<div class="incoming-card-type"><i class="fas ' + typeIcon + '"></i> ' + escapeHtml(typeLabel) + '</div>' +
+                        (it.source_dept_name ? '<div class="incoming-card-source" onclick="if(' + (it.source_dept_id || 0) + '){currentDeptId=' + (it.source_dept_id || 0) + ';navigateTo(\'dept-detail\')}"><i class="fas fa-building"></i> ' + t('sourceDepartment') + ': <strong>' + escapeHtml(it.source_dept_name) + '</strong></div>' : '') +
+                        '<div class="incoming-card-period"><i class="fas fa-calendar-alt"></i> ' + escapeHtml(period) + '</div>' +
+                        (it.condition ? '<div class="incoming-card-meta"><i class="fas fa-clipboard-check"></i> ' + (it.condition === 'good' ? t('conditionGood') : t('conditionNotGood')) + (it.condition_notes ? ' — ' + escapeHtml(it.condition_notes) : '') + '</div>' : '') +
+                        (it.notes ? '<div class="incoming-card-meta"><i class="fas fa-sticky-note"></i> ' + escapeHtml(it.notes) + '</div>' : '') +
+                    '</div>' +
                 '</div>' +
-            '</div>' +
-            '<div class="incoming-card-actions">' +
-                '<button class="equip-action equip-action-history" onclick="openCovenantModal({id:' + it.id + ',name:\'' + safeName + '\',entity_type:\'' + it.entity_type + '\'})"><i class="fas fa-clock-rotate-left"></i><span>' + t('history') + '</span></button>' +
-                '<button class="equip-action equip-action-return" onclick="returnIncomingCustody(' + it.id + ',\'' + it.entity_type + '\')"><i class="fas fa-undo"></i><span>' + t('returnToOriginalDept') + '</span></button>' +
-            '</div>';
+                '<div class="incoming-card-actions">' +
+                    '<button class="equip-action equip-action-history" onclick="openCovenantModal({id:' + it.id + ',name:\'' + safeName + '\',entity_type:\'' + it.entity_type + '\'})"><i class="fas fa-clock-rotate-left"></i><span>' + t('history') + '</span></button>' +
+                    '<button class="equip-action equip-action-return" onclick="returnIncomingCustody(' + it.id + ',\'' + it.entity_type + '\')"><i class="fas fa-undo"></i><span>' + t('returnToOriginalDept') + '</span></button>' +
+                '</div>';
+        }
         grid.appendChild(card);
     });
 }
@@ -4062,6 +4101,35 @@ async function renderEmpItems() {
             grid.appendChild(card);
         });
     }
+
+    // Storage custody section (locker/warehouse items under temporary custody)
+    var storageItems = (currentEmpData && currentEmpData.incoming_storage_items) || [];
+    var storageSection = document.getElementById('empStorageCustodySection');
+    if (!storageSection) {
+        storageSection = document.createElement('div');
+        storageSection.id = 'empStorageCustodySection';
+        grid.parentElement.appendChild(storageSection);
+    }
+    storageSection.innerHTML = '';
+    if (storageItems.length > 0) {
+        storageSection.innerHTML = '<h3 class="emp-section-title" style="margin-top:24px;padding:0 4px"><i class="fas fa-boxes" style="color:#f59e0b"></i> <span>' + (t('underTempCustody') || 'Temporary Custody') + '</span></h3>';
+        var storageGrid = document.createElement('div');
+        storageGrid.className = 'emp-custody-grid';
+        storageItems.forEach(function(item) {
+            var card = document.createElement('div');
+            card.className = 'equip-card emp-custody-storage-card';
+            card.innerHTML =
+                '<div class="incoming-card-banner" style="background:linear-gradient(135deg,rgba(245,158,11,0.2),rgba(245,158,11,0.05));color:#f59e0b;border-bottom:1px solid rgba(245,158,11,0.2);padding:6px 10px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px"><i class="fas fa-inbox"></i> ' + (t('underTempCustody') || 'Temp Custody') + '</div>' +
+                '<div class="equip-card-img">' + (item.item_image ? '<img src="' + escapeHtml(item.item_image) + '">' : '<i class="fas ' + (item.entity_type === 'locker_item' ? 'fa-box-open' : 'fa-warehouse') + '"></i>') + '</div>' +
+                '<div class="equip-card-body">' +
+                    '<div class="equip-card-name">' + escapeHtml(item.item_name || '') + '</div>' +
+                    '<div class="equip-card-meta"><i class="fas ' + (item.entity_type === 'locker_item' ? 'fa-box-open' : 'fa-warehouse') + '"></i> ' + escapeHtml(item.locker_name || item.zone_name || '') + '</div>' +
+                    '<div class="equip-card-meta"><i class="fas fa-calendar"></i> ' + escapeHtml(item.start_date || item.transfer_date || '') + (item.end_date ? ' → ' + escapeHtml(item.end_date) : '') + '</div>' +
+                '</div>';
+            storageGrid.appendChild(card);
+        });
+        storageSection.appendChild(storageGrid);
+    }
 }
 
 async function updateEmpItemInline(id, data) {
@@ -4356,6 +4424,140 @@ async function deleteUser(id, username) {
     } catch (err) {
         showToast(err.message || t('saveFailed'), 'error');
     }
+}
+
+// ============ Item Custody (Locker & Warehouse items) ============
+var _itemCustody = { id: null, type: null, mode: 'employee' };
+var highlightWarehouseItemId = null;
+
+function setItemCustodyMode(mode) {
+    _itemCustody.mode = mode;
+    document.querySelectorAll('#itemCustodyModal .transfer-mode-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.mode === mode);
+    });
+    var empF = document.getElementById('itemCustodyEmpField');
+    var deptF = document.getElementById('itemCustodyDeptField');
+    if (empF) empF.style.display = mode === 'employee' ? '' : 'none';
+    if (deptF) deptF.style.display = mode === 'department' ? '' : 'none';
+}
+
+async function openItemCustodyModal(itemId, itemName, entityType) {
+    _itemCustody.id = itemId;
+    _itemCustody.type = entityType || 'locker_item';
+    setItemCustodyMode('employee');
+    document.getElementById('itemCustodyItemName').textContent = ' — ' + (itemName || '');
+    var timeline = document.getElementById('itemCustodyTimeline');
+    var curPanel = document.getElementById('itemCurrentCustodyPanel');
+    timeline.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i></div>';
+    if (curPanel) curPanel.style.display = 'none';
+    document.getElementById('itemCustodyModal').classList.add('active');
+    var empSel = document.getElementById('itemCustodyEmpSel');
+    var deptSel = document.getElementById('itemCustodyDeptSel');
+    empSel.innerHTML = '<option value="">' + t('selectEmployee') + '</option>';
+    deptSel.innerHTML = '<option value="">' + t('selectDepartment') + '</option>';
+    try {
+        var res = await Promise.all([API.getEmployees(), API.getDepartments()]);
+        res[0].forEach(function(e) { empSel.innerHTML += '<option value="' + e.id + '">' + escapeHtml(e.name) + (e.job_title ? ' — ' + escapeHtml(e.job_title) : '') + '</option>'; });
+        res[1].forEach(function(d) { deptSel.innerHTML += '<option value="' + d.id + '">' + escapeHtml(d.name) + '</option>'; });
+    } catch(e) {}
+    try {
+        var history = _itemCustody.type === 'warehouse_item'
+            ? await API.getWarehouseItemCustody(itemId)
+            : await API.getLockerItemCustody(itemId);
+        timeline.innerHTML = '';
+        var active = null;
+        if (history && history.length) { for (var i = 0; i < history.length; i++) { if (history[i].status === 'active') { active = history[i]; break; } } }
+        if (active && curPanel) {
+            curPanel.style.display = 'block';
+            var heldBy = active.to_department_id ? (active.to_department_name || '') : (active.to_employee_name || '');
+            var heldIcon = active.to_department_id ? 'fa-building' : 'fa-user-clock';
+            var periodStr = (active.start_date || active.transfer_date || '') + (active.end_date ? ' → ' + active.end_date : '');
+            curPanel.innerHTML =
+                '<div class="cur-cust-header"><i class="fas ' + heldIcon + '"></i> ' + t('outOfDeptCustody') + '</div>' +
+                '<div class="cur-cust-row"><span class="cur-cust-label">' + (active.to_department_id ? t('targetDepartment') : t('currentlyWith')) + ':</span> <strong>' + escapeHtml(heldBy) + '</strong></div>' +
+                '<div class="cur-cust-row"><span class="cur-cust-label">' + t('custodyPeriod') + ':</span> ' + escapeHtml(periodStr) + '</div>' +
+                (active.notes ? '<div class="cur-cust-row"><span class="cur-cust-label">' + t('additionalNotes') + ':</span> ' + escapeHtml(active.notes) + '</div>' : '') +
+                '<div class="cur-cust-actions"><button class="btn-add btn-return-cust" onclick="returnItemCustody()"><i class="fas fa-undo"></i> ' + t('markReturned') + '</button></div>';
+        }
+        if (!history || !history.length) {
+            timeline.innerHTML = '<div class="empty-state" style="padding:14px"><p>' + t('noItems') + '</p></div>';
+        } else {
+            history.forEach(function(h) {
+                var entry = document.createElement('div');
+                entry.className = 'history-entry status-' + (h.status || 'active');
+                var rName = h.to_department_id ? (h.to_department_name || '') : (h.to_employee_name || t('unknown'));
+                var rIcon = h.to_department_id ? 'fa-building' : 'fa-user';
+                entry.innerHTML =
+                    '<div style="display:flex;align-items:center;gap:10px">' +
+                    '<i class="fas ' + rIcon + '" style="font-size:18px;color:var(--text-muted);width:32px;text-align:center"></i>' +
+                    '<div><div class="history-entry-name">' + escapeHtml(rName) + '</div></div></div>' +
+                    '<div class="history-entry-dates"><i class="fas fa-calendar" style="font-size:11px"></i> ' + (h.start_date || h.transfer_date || '') + (h.end_date ? ' &rarr; ' + h.end_date : '') +
+                    ' <span class="history-status-badge ' + (h.status || 'active') + '">' + (h.status || 'active') + '</span></div>' +
+                    (h.notes ? '<div style="font-size:11px;color:var(--text-muted);margin-top:4px">' + escapeHtml(h.notes) + '</div>' : '');
+                timeline.appendChild(entry);
+            });
+        }
+    } catch(e) { timeline.innerHTML = '<div class="empty-state"><p>' + t('failedLoad') + '</p></div>'; }
+    document.getElementById('itemCustodyStart').value = new Date().toISOString().split('T')[0];
+    document.getElementById('itemCustodyEnd').value = '';
+    document.getElementById('itemCustodyNotes').value = '';
+    document.getElementById('itemCustodyCondNotes').value = '';
+    document.getElementById('itemCustodyCondNotesWrap').style.display = 'none';
+    var gr = document.querySelector('input[name="itemCustodyCond"][value="good"]'); if (gr) gr.checked = true;
+}
+
+async function submitItemCustodyTransfer() {
+    var mode = _itemCustody.mode;
+    var startDate = document.getElementById('itemCustodyStart').value;
+    if (!startDate) { showToast(t('startDate'), 'error'); return; }
+    var payload = { transfer_date: startDate, start_date: startDate, end_date: document.getElementById('itemCustodyEnd').value || '', notes: document.getElementById('itemCustodyNotes').value.trim() };
+    if (mode === 'department') {
+        var dId = document.getElementById('itemCustodyDeptSel').value;
+        if (!dId) { showToast(t('selectDepartment'), 'error'); return; }
+        payload.to_department_id = parseInt(dId);
+    } else {
+        var eId = document.getElementById('itemCustodyEmpSel').value;
+        if (!eId) { showToast(t('selectEmployee'), 'error'); return; }
+        payload.to_employee_id = parseInt(eId);
+    }
+    var condEl = document.querySelector('input[name="itemCustodyCond"]:checked');
+    payload.condition = condEl ? condEl.value : 'good';
+    payload.condition_notes = document.getElementById('itemCustodyCondNotes').value.trim();
+    if (payload.condition === 'not_good' && !payload.condition_notes) { showToast(t('conditionNotes'), 'error'); return; }
+    try {
+        if (_itemCustody.type === 'warehouse_item') await API.addWarehouseItemCustody(_itemCustody.id, payload);
+        else await API.addLockerItemCustody(_itemCustody.id, payload);
+        var iName = document.getElementById('itemCustodyItemName').textContent.replace(' — ', '');
+        await openItemCustodyModal(_itemCustody.id, iName, _itemCustody.type);
+        if (_itemCustody.type === 'warehouse_item') {
+            if (currentZoneId) {
+                currentZoneData = await API.getZone(currentZoneId);
+                if (currentAreaId) { var area = currentZoneData.areas.find(function(a) { return a.id === currentAreaId; }); if (area) openAreaItems(currentAreaId, area.name); }
+            }
+        } else {
+            if (currentLockerId) { currentLockerData = await API.getLocker(currentLockerId); renderItems(); }
+        }
+        showToast(t('custodyTransferred') || 'Transferred to custody');
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function returnItemCustody() {
+    if (!_itemCustody.id) return;
+    try {
+        if (_itemCustody.type === 'warehouse_item') await API.returnWarehouseItemCustody(_itemCustody.id, {});
+        else await API.returnLockerItemCustody(_itemCustody.id, {});
+        var iName = document.getElementById('itemCustodyItemName').textContent.replace(' — ', '');
+        await openItemCustodyModal(_itemCustody.id, iName, _itemCustody.type);
+        if (_itemCustody.type === 'warehouse_item') {
+            if (currentZoneId) {
+                currentZoneData = await API.getZone(currentZoneId);
+                if (currentAreaId) { var area = currentZoneData.areas.find(function(a) { return a.id === currentAreaId; }); if (area) openAreaItems(currentAreaId, area.name); }
+            }
+        } else {
+            if (currentLockerId) { currentLockerData = await API.getLocker(currentLockerId); renderItems(); }
+        }
+        showToast(t('returnedSuccessfully') || 'Returned successfully');
+    } catch(e) { showToast(e.message, 'error'); }
 }
 
 // ============ Init ============

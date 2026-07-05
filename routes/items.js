@@ -132,5 +132,46 @@ module.exports = function (db) {
         res.json(updated.rows[0]);
     });
 
+    // ========== Locker item custody ==========
+    router.get('/:id/custody', async (req, res) => {
+        try {
+            const result = await db.execute({
+                sql: `SELECT ch.*, e.name AS to_employee_name, e.photo AS employee_photo, e.job_title,
+                      d.name AS to_department_name
+                      FROM covenant_history ch
+                      LEFT JOIN employees e ON e.id = ch.to_employee_id
+                      LEFT JOIN departments d ON d.id = ch.to_department_id
+                      WHERE ch.item_id = ? AND ch.entity_type = 'locker_item'
+                      ORDER BY ch.created_at DESC`,
+                args: [req.params.id]
+            });
+            res.json(result.rows);
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    router.post('/:id/custody', async (req, res) => {
+        try {
+            const item = await db.execute({ sql: 'SELECT * FROM items WHERE id = ?', args: [req.params.id] });
+            if (item.rows.length === 0) return res.status(404).json({ error: 'Item not found' });
+            const { to_employee_id, to_department_id, transfer_date, start_date, end_date, condition, condition_notes, notes } = req.body;
+            await db.execute({ sql: `UPDATE covenant_history SET status='transferred' WHERE item_id=? AND entity_type='locker_item' AND status='active'`, args: [req.params.id] });
+            const today = new Date().toISOString().split('T')[0];
+            const result = await db.execute({
+                sql: `INSERT INTO covenant_history (entity_type, item_id, to_employee_id, to_department_id, transfer_date, start_date, end_date, status, condition, condition_notes, notes) VALUES ('locker_item', ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`,
+                args: [req.params.id, to_employee_id || null, to_department_id || null, transfer_date || today, start_date || today, end_date || '', condition || '', condition_notes || '', notes || '']
+            });
+            const created = await db.execute({ sql: `SELECT ch.*, e.name AS to_employee_name, d.name AS to_department_name FROM covenant_history ch LEFT JOIN employees e ON e.id=ch.to_employee_id LEFT JOIN departments d ON d.id=ch.to_department_id WHERE ch.id=?`, args: [Number(result.lastInsertRowid)] });
+            res.status(201).json(created.rows[0]);
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
+    router.post('/:id/custody/return', async (req, res) => {
+        try {
+            const { return_condition, return_notes } = req.body;
+            await db.execute({ sql: `UPDATE covenant_history SET status='returned', return_condition=?, return_notes=?, end_date=? WHERE item_id=? AND entity_type='locker_item' AND status='active'`, args: [return_condition || '', return_notes || '', new Date().toISOString().split('T')[0], req.params.id] });
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
     return router;
 };

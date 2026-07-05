@@ -115,6 +115,24 @@ module.exports = function (db) {
         }
         const itemsWithCovenant = items.rows.map(it => ({ ...it, covenant_history: covByKey['item:' + it.id] || [] }));
         const equipmentWithCovenant = equipment.rows.map(eq => ({ ...eq, covenant_history: covByKey['equipment:' + eq.id] || [] }));
+        const [incomingLockerItems, incomingWarehouseItems] = await Promise.all([
+            db.execute({
+                sql: `SELECT ch.*, i.name AS item_name, i.image AS item_image, i.description, l.id AS locker_id, l.name AS locker_name, 'locker_item' AS entity_type
+                      FROM covenant_history ch
+                      JOIN items i ON i.id = ch.item_id
+                      JOIN lockers l ON l.id = i.locker_id
+                      WHERE ch.entity_type = 'locker_item' AND ch.to_department_id = ? AND ch.status = 'active'`,
+                args: [id]
+            }),
+            db.execute({
+                sql: `SELECT ch.*, wi.name AS item_name, wi.image AS item_image, wi.description, wz.id AS zone_id, wz.name AS zone_name, 'warehouse_item' AS entity_type
+                      FROM covenant_history ch
+                      JOIN warehouse_items wi ON wi.id = ch.item_id
+                      JOIN warehouse_zones wz ON wz.id = wi.zone_id
+                      WHERE ch.entity_type = 'warehouse_item' AND ch.to_department_id = ? AND ch.status = 'active'`,
+                args: [id]
+            })
+        ]);
         res.json({
             ...dept.rows[0],
             employees: employees.rows,
@@ -122,6 +140,7 @@ module.exports = function (db) {
             equipment: equipmentWithCovenant,
             incoming_items: incomingItems.rows,
             incoming_equipment: incomingEquipment.rows,
+            incoming_storage: [...incomingLockerItems.rows, ...incomingWarehouseItems.rows],
             history: history.rows
         });
     });

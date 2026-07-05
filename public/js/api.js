@@ -137,4 +137,14 @@ const API = {
     deleteEmployee(id)          { return this.request('DELETE', '/employees/' + id); },
     uploadEmployeePhoto(id, f)  { return this.upload('/employees/' + id + '/photo', f); },
     addEmployeeItem(id, data)   { return this.request('POST', '/employees/' + id + '/items', data); },
+
+    // Locker item custody
+    getLockerItemCustody(id)          { return this.request('GET', '/items/' + id + '/custody'); },
+    addLockerItemCustody(id, data)    { return this.request('POST', '/items/' + id + '/custody', data); },
+    returnLockerItemCustody(id, data) { return this.request('POST', '/items/' + id + '/custody/return', data); },
+
+    // Warehouse item custody
+    getWarehouseItemCustody(id)          { return this.request('GET', '/warehouse/items/' + id + '/custody'); },
+    addWarehouseItemCustody(id, data)    { return this.request('POST', '/warehouse/items/' + id + '/custody', data); },
+    returnWarehouseItemCustody(id, data) { return this.request('POST', '/warehouse/items/' + id + '/custody/return', data); },
 };
