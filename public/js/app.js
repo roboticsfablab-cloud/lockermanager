@@ -1028,12 +1028,12 @@ function renderItems() {
                     '</div>' +
                 '</div>' +
                 '<div class="lk-item-actions">' +
-                    '<button class="lk-act lk-act-plus" onclick="changeQty(' + item.id + ',1)" title="+1"><i class="fas fa-plus"></i></button>' +
-                    '<button class="lk-act lk-act-minus" onclick="changeQty(' + item.id + ',-1)" title="-1"><i class="fas fa-minus"></i></button>' +
-                    '<label class="lk-act lk-act-cam" title="Image"><i class="fas fa-camera"></i><input type="file" accept="image/*" style="display:none" onchange="uploadItemImage(' + item.id + ',this.files[0])"></label>' +
-                    '<button class="lk-act lk-act-move" title="' + t('moveItem') + '" onclick="openMoveItemModal(' + item.id + ',\'' + escapeHtml(item.name).replace(/\\/g,"\\\\").replace(/'/g,"\\'") + '\')"><i class="fas fa-dolly"></i></button>' +
-                    '<button class="lk-act lk-act-custody ' + (item.custody_id ? 'has-custody' : '') + '" title="' + escapeHtml(item.custody_id ? ((item.custody_emp_name || item.custody_dept_name || '')) : (t('transferCustody') || 'Custody')) + '" onclick="openItemCustodyModal(' + item.id + ',\'' + escapeHtml(item.name).replace(/\\/g,"\\\\").replace(/'/g,"\\'") + '\',\'locker_item\')"><i class="fas ' + (item.custody_id ? 'fa-hand-holding' : 'fa-hand-holding-box') + '"></i></button>' +
-                    '<button class="lk-act lk-act-del" onclick="removeItem(' + item.id + ')"><i class="fas fa-trash-alt"></i></button>' +
+                    '<button class="lk-act-labeled lk-act-labeled-plus" onclick="changeQty(' + item.id + ',1)" title="+1"><i class="fas fa-plus"></i><span>+1</span></button>' +
+                    '<button class="lk-act-labeled lk-act-labeled-minus" onclick="changeQty(' + item.id + ',-1)" title="-1"><i class="fas fa-minus"></i><span>-1</span></button>' +
+                    '<label class="lk-act-labeled lk-act-labeled-cam" title="' + t('chooseImage') + '"><i class="fas fa-camera"></i><span>' + (t('image') || 'Image') + '</span><input type="file" accept="image/*" style="display:none" onchange="uploadItemImage(' + item.id + ',this.files[0])"></label>' +
+                    '<button class="lk-act-labeled lk-act-labeled-move" onclick="openMoveItemModal(' + item.id + ',\'' + escapeHtml(item.name).replace(/\\/g,"\\\\").replace(/'/g,"\\'") + '\')"><i class="fas fa-dolly"></i><span>' + (t('move') || 'Move') + '</span></button>' +
+                    '<button class="lk-act-labeled lk-act-labeled-custody ' + (item.custody_id ? 'has-custody' : '') + '" onclick="openItemCustodyModal(' + item.id + ',\'' + escapeHtml(item.name).replace(/\\/g,"\\\\").replace(/'/g,"\\'") + '\',\'locker_item\')"><i class="fas ' + (item.custody_id ? 'fa-hand-holding' : 'fa-hand-holding-box') + '"></i><span>' + (t('custody') || 'Custody') + '</span></button>' +
+                    '<button class="lk-act-labeled lk-act-labeled-del" onclick="removeItem(' + item.id + ')"><i class="fas fa-trash-alt"></i><span>' + (t('delete') || 'Delete') + '</span></button>' +
                 '</div>';
             listEl.appendChild(card);
         });
