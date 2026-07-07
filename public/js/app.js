@@ -65,6 +65,7 @@ const i18n = {
         custodyTransferred:'Custody transferred',
         viewCustodyDetails:'View Custody Details',
         custodyDetails:'Custody Details',
+        editCustodyItem:'Edit Custody Item', itemUpdated:'Item updated',
         conditionOnReceipt:'Item Condition Upon Receipt',
         originalNotes:'Original Transfer Notes',
         originalDepartment:'Original Department',
@@ -240,6 +241,7 @@ const i18n = {
         custodyTransferred:'تم نقل العهدة',
         viewCustodyDetails:'عرض تفاصيل العهدة',
         custodyDetails:'تفاصيل العهدة',
+        editCustodyItem:'تعديل عنصر العهدة', itemUpdated:'تم تحديث العنصر',
         conditionOnReceipt:'حالة الجهاز عند الاستلام',
         originalNotes:'ملاحظات النقل الأصلية',
         originalDepartment:'القسم الأصلي',
@@ -4134,6 +4136,7 @@ async function renderEmpItems() {
                     '</div>' +
                     '<div class="custody-v2-tools">' +
                         '<label class="custody-v2-tool-btn" title="Upload"><i class="fas fa-camera"></i><input type="file" accept="image/*" style="display:none" onchange="uploadEmpItemImg(' + item.id + ',\'' + (item.entity_type || 'item') + '\',this.files[0])"></label>' +
+                        '<button class="custody-v2-tool-btn" title="' + (t('editCustodyItem') || 'Edit') + '" onclick="openEmpItemEditModal(' + item.id + ',\'' + (item.entity_type || 'item') + '\')"><i class="fas fa-pen"></i></button>' +
                         '<button class="custody-v2-tool-btn custody-v2-tool-del" onclick="deleteEmpItem(' + item.id + ',\'' + (item.entity_type || 'item') + '\')"><i class="fas fa-trash-alt"></i></button>' +
                     '</div>' +
                 '</div>' +
@@ -4180,11 +4183,41 @@ async function renderEmpItems() {
     }
 }
 
-async function updateEmpItemInline(id, data) {
+// ---- Edit a custody item's qty / receipt date / condition directly from the
+// employee page (routes to the items or equipment table depending on which
+// list the row lives in — they're separate tables with separate PUT routes).
+var _empItemEdit = { id: null, entityType: 'item' };
+
+function openEmpItemEditModal(id, entityType) {
+    var emp = currentEmpData || {};
+    var type = entityType === 'equipment' ? 'equipment' : 'item';
+    var item = (emp.items || []).find(function(x) { return x.id === id && (x.entity_type || 'item') === type; });
+    if (!item) return;
+    _empItemEdit.id = id;
+    _empItemEdit.entityType = type;
+    document.getElementById('empItemEditName').textContent = ' — ' + (item.name || '');
+    document.getElementById('empItemEditQty').value = item.qty || 1;
+    document.getElementById('empItemEditDate').value = item.receipt_date || '';
+    document.getElementById('empItemEditCondition').value = item.condition || 'new';
+    document.getElementById('empItemEditModal').classList.add('active');
+}
+
+async function saveEmpItemEdit() {
+    if (!_empItemEdit.id) return;
+    var qty = parseInt(document.getElementById('empItemEditQty').value);
+    if (isNaN(qty) || qty < 1) { showToast(t('qty'), 'error'); return; }
+    var data = {
+        qty: qty,
+        receipt_date: document.getElementById('empItemEditDate').value || '',
+        condition: document.getElementById('empItemEditCondition').value
+    };
     try {
-        await API.updateDeptItem(id, data);
+        if (_empItemEdit.entityType === 'equipment') await API.updateDeptEquipment(_empItemEdit.id, data);
+        else await API.updateDeptItem(_empItemEdit.id, data);
+        closeModal('empItemEditModal');
         currentEmpData = await API.getEmployee(currentEmpId);
         await renderEmpItems();
+        showToast(t('itemUpdated'));
     } catch (e) { showToast(e.message, 'error'); }
 }
 
@@ -5042,7 +5075,17 @@ function printEmpHistory() {
 // the same RTL-for-Arabic behavior.
 function printEmpSignatureSheet() {
     var emp = currentEmpData || {};
-    var items = emp.items || [];
+    // Department items/equipment carry a qty; locker/warehouse items under
+    // temporary custody (incoming_storage_items) don't track a split quantity
+    // — normalize both into one shape so the sheet covers everything the
+    // employee currently holds, not just the department-owned half.
+    var deptItems = (emp.items || []).map(function(r) {
+        return { name: r.name, description: r.description, qty: r.qty, receipt_date: r.receipt_date || r.start_date || '' };
+    });
+    var storageItems = (emp.incoming_storage_items || []).map(function(r) {
+        return { name: r.item_name, description: r.description, qty: null, receipt_date: r.start_date || r.transfer_date || '' };
+    });
+    var items = deptItems.concat(storageItems);
     if (!items.length) { showToast(t('noData'), 'warning'); return; }
 
     var now = new Date();
@@ -5050,7 +5093,7 @@ function printEmpSignatureSheet() {
     var esc = escapeHtml;
 
     var durationDays = function(r) {
-        var start = r.receipt_date || r.start_date;
+        var start = r.receipt_date;
         if (!start) return '';
         var d = Math.floor((now - new Date(start)) / (1000 * 60 * 60 * 24));
         return isNaN(d) || d < 0 ? '' : (t('custodyDurationDays') || '{n} days').replace('{n}', d);

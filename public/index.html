@@ -1749,6 +1749,45 @@
     </div>
 </div>
 
+<!-- Employee Custody Item Edit Modal (qty / date / condition) -->
+<div class="modal-overlay" id="empItemEditModal">
+    <div class="modal-content modal-md">
+        <div class="modal-header">
+            <h2>
+                <i class="fas fa-pen" style="margin-right:8px;color:var(--accent)"></i>
+                <span data-i18n="editCustodyItem">Edit Custody Item</span>
+                <span class="covenant-item-name" id="empItemEditName"></span>
+            </h2>
+            <button class="modal-close" onclick="closeModal('empItemEditModal')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="transfer-form-grid">
+                <div class="form-field">
+                    <label data-i18n="qty">Qty</label>
+                    <input type="number" id="empItemEditQty" min="1" step="1">
+                </div>
+                <div class="form-field">
+                    <label data-i18n="receiptDate">Receipt Date</label>
+                    <input type="date" id="empItemEditDate">
+                </div>
+                <div class="form-field full">
+                    <label data-i18n="deviceCondition">Condition</label>
+                    <select id="empItemEditCondition">
+                        <option value="new" data-i18n="conditionNew">New</option>
+                        <option value="used" data-i18n="conditionUsed">Used</option>
+                        <option value="repairable" data-i18n="conditionRepairable">Repairable</option>
+                        <option value="maintenance" data-i18n="conditionMaintenance">Needs Maintenance</option>
+                        <option value="damaged" data-i18n="conditionDamaged">Damaged</option>
+                    </select>
+                </div>
+            </div>
+            <button class="btn-add transfer-submit-btn" onclick="saveEmpItemEdit()">
+                <i class="fas fa-check"></i> <span data-i18n="save">Save</span>
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- All Department Equipment Panel -->
 <div class="modal-overlay" id="allDeptEquipPanel">
     <div class="modal-content modal-lg">
@@ -1930,8 +1969,8 @@
 </div>
 
 <!-- Scripts -->
-<script src="/js/api.js?v=27"></script>
-<script src="/js/app.js?v=27"></script>
+<script src="/js/api.js?v=28"></script>
+<script src="/js/app.js?v=28"></script>
 
 </body>
 </html>
