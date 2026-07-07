@@ -47,6 +47,7 @@ const API = {
 
     // Items
     getAllItems()           { return this.request('GET', '/items'); },
+    getItem(id)             { return this.request('GET', '/items/' + id); },
     addItem(lid, data)     { return this.request('POST', '/items/locker/' + lid, data); },
     updateItem(id, data)   { return this.request('PUT', '/items/' + id, data); },
     changeQty(id, delta)   { return this.request('PATCH', '/items/' + id + '/qty', { delta }); },
@@ -77,6 +78,7 @@ const API = {
     uploadAreaImage(id, f)   { return this.upload('/warehouse/areas/' + id + '/image', f); },
 
     // Warehouse Items
+    getWarehouseItem(id)   { return this.request('GET', '/warehouse/items/' + id); },
     addZoneItem(zid, data) { return this.request('POST', '/warehouse/' + zid + '/items', data); },
     updateZoneItem(id, d)  { return this.request('PUT', '/warehouse/items/' + id, d); },
     deleteZoneItem(id)     { return this.request('DELETE', '/warehouse/items/' + id); },

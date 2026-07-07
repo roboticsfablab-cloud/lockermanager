@@ -64,6 +64,15 @@ module.exports = function (db) {
         res.status(201).json(item.rows[0]);
     });
 
+    // Single-item fetch — used by the custody dialog to read a live qty
+    // regardless of which page it was opened from (it may not have the
+    // locker's item list cached, e.g. when opened from an employee page).
+    router.get('/:id', async (req, res) => {
+        const result = await db.execute({ sql: 'SELECT * FROM items WHERE id = ?', args: [req.params.id] });
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Item not found' });
+        res.json(result.rows[0]);
+    });
+
     router.put('/:id', async (req, res) => {
         const itemResult = await db.execute({ sql: 'SELECT * FROM items WHERE id = ?', args: [req.params.id] });
         if (itemResult.rows.length === 0) return res.status(404).json({ error: 'Item not found' });
@@ -149,19 +158,77 @@ module.exports = function (db) {
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
+    // Custody transfer = a REAL move, same as the warehouse item flow
+    // (routes/warehouse.js): the transferred quantity leaves the locker (qty
+    // decremented, row deleted once empty) and lands as a normal row in
+    // department_items. Two non-active ('transferred') covenant_history rows
+    // are logged purely for audit/history.
     router.post('/:id/custody', async (req, res) => {
         try {
             const item = await db.execute({ sql: 'SELECT * FROM items WHERE id = ?', args: [req.params.id] });
             if (item.rows.length === 0) return res.status(404).json({ error: 'Item not found' });
-            const { to_employee_id, to_department_id, transfer_date, start_date, end_date, condition, condition_notes, notes } = req.body;
-            await db.execute({ sql: `UPDATE covenant_history SET status='transferred' WHERE item_id=? AND entity_type='locker_item' AND status='active'`, args: [req.params.id] });
+            const it = item.rows[0];
+            const { to_employee_id, to_department_id, transfer_date, start_date, end_date, condition, condition_notes, notes, qty } = req.body;
+            if (!to_employee_id && !to_department_id) return res.status(400).json({ error: 'Target employee or department required' });
+
+            const available = Number(it.qty) || 0;
+            if (available < 1) return res.status(400).json({ error: 'Item has no available stock to transfer' });
+            const requested = parseInt(qty);
+            const moveQty = Math.min(available, Math.max(1, isNaN(requested) ? available : requested));
+
+            let destDeptId = null;
+            let destEmployeeId = null;
+            if (to_employee_id) {
+                const emp = await db.execute({ sql: 'SELECT id, department_id FROM employees WHERE id = ?', args: [to_employee_id] });
+                if (emp.rows.length === 0) return res.status(404).json({ error: 'Employee not found' });
+                if (!emp.rows[0].department_id) return res.status(400).json({ error: 'Employee must belong to a department' });
+                destDeptId = emp.rows[0].department_id;
+                destEmployeeId = to_employee_id;
+            } else {
+                const dep = await db.execute({ sql: 'SELECT id FROM departments WHERE id = ?', args: [to_department_id] });
+                if (dep.rows.length === 0) return res.status(404).json({ error: 'Target department not found' });
+                destDeptId = to_department_id;
+            }
+
+            // Safety net for any pre-existing dangling 'active' row from before this
+            // item started actually moving on transfer (legacy data only).
+            await db.execute({ sql: "UPDATE covenant_history SET status='transferred' WHERE item_id=? AND entity_type='locker_item' AND status='active'", args: [it.id] });
+
             const today = new Date().toISOString().split('T')[0];
-            const result = await db.execute({
-                sql: `INSERT INTO covenant_history (entity_type, item_id, to_employee_id, to_department_id, transfer_date, start_date, end_date, status, condition, condition_notes, notes) VALUES ('locker_item', ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`,
-                args: [req.params.id, to_employee_id || null, to_department_id || null, transfer_date || today, start_date || today, end_date || '', condition || '', condition_notes || '', notes || '']
+            const receiptDate = start_date || transfer_date || today;
+
+            const deptItemResult = await db.execute({
+                sql: `INSERT INTO department_items (department_id, employee_id, name, description, qty, image, receipt_date, purpose)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                args: [destDeptId, destEmployeeId, it.name, it.description || '', moveQty, it.image || '', receiptDate, notes || '']
             });
-            const created = await db.execute({ sql: `SELECT ch.*, e.name AS to_employee_name, d.name AS to_department_name FROM covenant_history ch LEFT JOIN employees e ON e.id=ch.to_employee_id LEFT JOIN departments d ON d.id=ch.to_department_id WHERE ch.id=?`, args: [Number(result.lastInsertRowid)] });
-            res.status(201).json(created.rows[0]);
+            const newDeptItemId = Number(deptItemResult.lastInsertRowid);
+
+            const remaining = available - moveQty;
+            if (remaining <= 0) {
+                await db.execute({ sql: 'DELETE FROM items WHERE id = ?', args: [it.id] });
+            } else {
+                await db.execute({ sql: 'UPDATE items SET qty = ? WHERE id = ?', args: [remaining, it.id] });
+            }
+
+            let lockerName = '';
+            const locker = await db.execute({ sql: 'SELECT id, name FROM lockers WHERE id = ?', args: [it.locker_id] });
+            if (locker.rows.length) lockerName = locker.rows[0].name || ('Locker ' + locker.rows[0].id);
+            const destLabel = destEmployeeId ? ('employee #' + destEmployeeId) : ('department #' + destDeptId);
+
+            await db.execute({
+                sql: `INSERT INTO covenant_history (entity_type, item_id, to_employee_id, to_department_id, transfer_date, start_date, end_date, status, condition, condition_notes, notes)
+                      VALUES ('locker_item', ?, ?, ?, ?, ?, ?, 'transferred', ?, ?, ?)`,
+                args: [it.id, destEmployeeId, destEmployeeId ? null : destDeptId, transfer_date || today, receiptDate, end_date || '', condition || '', condition_notes || '', 'Transferred to ' + destLabel + ' · qty ' + moveQty + (notes ? ' — ' + notes : '')]
+            });
+            await db.execute({
+                sql: `INSERT INTO covenant_history (entity_type, item_id, to_employee_id, to_department_id, transfer_date, start_date, end_date, status, condition, condition_notes, notes)
+                      VALUES ('item', ?, ?, ?, ?, ?, ?, 'transferred', ?, ?, ?)`,
+                args: [newDeptItemId, destEmployeeId, destEmployeeId ? null : destDeptId, transfer_date || today, receiptDate, end_date || '', condition || '', condition_notes || '', 'Received from Locker: ' + lockerName + ' · qty ' + moveQty]
+            });
+
+            const created = await db.execute({ sql: 'SELECT * FROM department_items WHERE id = ?', args: [newDeptItemId] });
+            res.status(201).json({ ...created.rows[0], locker_item_deleted: remaining <= 0, locker_item_remaining_qty: Math.max(0, remaining) });
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 

@@ -92,6 +92,8 @@ const i18n = {
         returnToOriginalDept:'Return to Original Department',
         noIncoming:'No items currently under temporary custody.',
         underTempCustody:'Under Temporary Custody',
+        tempCustodyTab:'Temporary Custody', noTempCustody:'No items currently under temporary custody.',
+        manageCustody:'Manage', printTempCustodyTitle:'Print temporary custody',
         print:'Print', printIncoming:'Print Incoming', printCurrent:'Print Current',
         printHistory:'Print History',
         report:'Report', generatedOn:'Generated on', page:'Page', of:'of',
@@ -268,6 +270,8 @@ const i18n = {
         returnToOriginalDept:'إرجاع إلى القسم الأصلي',
         noIncoming:'لا توجد عناصر تحت عهدة مؤقتة حالياً.',
         underTempCustody:'تحت عهدة مؤقتة',
+        tempCustodyTab:'العهدة المؤقتة', noTempCustody:'لا توجد عناصر تحت عهدة مؤقتة حالياً.',
+        manageCustody:'إدارة', printTempCustodyTitle:'طباعة العهدة المؤقتة',
         print:'طباعة', printIncoming:'طباعة الواردة', printCurrent:'طباعة الحالية',
         printHistory:'طباعة السجل',
         report:'تقرير', generatedOn:'تم التوليد في', page:'صفحة', of:'من',
@@ -3980,11 +3984,13 @@ async function renderEmpDetail() {
         // Items - custody cards
         await renderEmpItems();
         renderEmpHistoryList();
-        // Reset to current tab
+        // Preserve whichever tab was already active across re-renders.
         var tabHistory = document.getElementById('empTabHistory');
-        var tabCurrent = document.getElementById('empTabCurrent');
+        var tabStorage = document.getElementById('empTabStorage');
         if (tabHistory && tabHistory.classList.contains('active')) {
             // keep history view
+        } else if (tabStorage && tabStorage.classList.contains('active')) {
+            switchEmpTab('storage');
         } else {
             switchEmpTab('current');
         }
@@ -3993,28 +3999,33 @@ async function renderEmpDetail() {
 }
 
 function switchEmpTab(tab) {
-    var current = document.getElementById('empCurrentSection');
-    var history = document.getElementById('empHistorySection');
-    var btnCur = document.getElementById('empTabCurrent');
-    var btnHis = document.getElementById('empTabHistory');
-    if (!current || !history) return;
-    if (tab === 'history') {
-        current.style.display = 'none';
-        history.style.display = '';
-        history.classList.remove('emp-fade-in');
-        void history.offsetWidth;
-        history.classList.add('emp-fade-in');
-        if (btnCur) btnCur.classList.remove('active');
-        if (btnHis) btnHis.classList.add('active');
-    } else {
-        current.style.display = '';
-        history.style.display = 'none';
-        current.classList.remove('emp-fade-in');
-        void current.offsetWidth;
-        current.classList.add('emp-fade-in');
-        if (btnCur) btnCur.classList.add('active');
-        if (btnHis) btnHis.classList.remove('active');
-    }
+    var sections = {
+        current: document.getElementById('empCurrentSection'),
+        storage: document.getElementById('empStorageSection'),
+        history: document.getElementById('empHistorySection')
+    };
+    var buttons = {
+        current: document.getElementById('empTabCurrent'),
+        storage: document.getElementById('empTabStorage'),
+        history: document.getElementById('empTabHistory')
+    };
+    if (!sections.current || !sections.history) return;
+    if (!sections[tab]) tab = 'current';
+    Object.keys(sections).forEach(function(key) {
+        var el = sections[key];
+        var btn = buttons[key];
+        if (!el) return;
+        if (key === tab) {
+            el.style.display = '';
+            el.classList.remove('emp-fade-in');
+            void el.offsetWidth;
+            el.classList.add('emp-fade-in');
+            if (btn) btn.classList.add('active');
+        } else {
+            el.style.display = 'none';
+            if (btn) btn.classList.remove('active');
+        }
+    });
 }
 
 function renderEmpHistoryList() {
@@ -4153,34 +4164,59 @@ async function renderEmpItems() {
         });
     }
 
-    // Storage custody section (locker/warehouse items under temporary custody)
+    // Temporary Custody tab — locker/warehouse items tagged (not yet moved)
+    // via the legacy covenant-only flow. Each card opens the same custody
+    // dialog used everywhere else, which now provides full manage/edit
+    // (qty + dates + condition, via a real transfer) and return actions.
     var storageItems = (currentEmpData && currentEmpData.incoming_storage_items) || [];
-    var storageSection = document.getElementById('empStorageCustodySection');
-    if (!storageSection) {
-        storageSection = document.createElement('div');
-        storageSection.id = 'empStorageCustodySection';
-        grid.parentElement.appendChild(storageSection);
+    var storageGrid = document.getElementById('empStorageGrid');
+    var storageBadge = document.getElementById('empStorageBadge');
+    if (storageBadge) {
+        if (storageItems.length > 0) { storageBadge.style.display = ''; storageBadge.textContent = storageItems.length; }
+        else storageBadge.style.display = 'none';
     }
-    storageSection.innerHTML = '';
-    if (storageItems.length > 0) {
-        storageSection.innerHTML = '<h3 class="emp-section-title" style="margin-top:24px;padding:0 4px"><i class="fas fa-boxes" style="color:#f59e0b"></i> <span>' + (t('underTempCustody') || 'Temporary Custody') + '</span></h3>';
-        var storageGrid = document.createElement('div');
-        storageGrid.className = 'emp-custody-grid';
-        storageItems.forEach(function(item) {
-            var card = document.createElement('div');
-            card.className = 'equip-card emp-custody-storage-card';
-            card.innerHTML =
-                '<div class="incoming-card-banner" style="background:linear-gradient(135deg,rgba(245,158,11,0.2),rgba(245,158,11,0.05));color:#f59e0b;border-bottom:1px solid rgba(245,158,11,0.2);padding:6px 10px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px"><i class="fas fa-inbox"></i> ' + (t('underTempCustody') || 'Temp Custody') + '</div>' +
-                '<div class="equip-card-img">' + (item.item_image ? '<img src="' + escapeHtml(item.item_image) + '">' : '<i class="fas ' + (item.entity_type === 'locker_item' ? 'fa-box-open' : 'fa-warehouse') + '"></i>') + '</div>' +
-                '<div class="equip-card-body">' +
-                    '<div class="equip-card-name">' + escapeHtml(item.item_name || '') + '</div>' +
-                    '<div class="equip-card-meta"><i class="fas ' + (item.entity_type === 'locker_item' ? 'fa-box-open' : 'fa-warehouse') + '"></i> ' + escapeHtml(item.locker_name || item.zone_name || '') + '</div>' +
-                    '<div class="equip-card-meta"><i class="fas fa-calendar"></i> ' + escapeHtml(item.start_date || item.transfer_date || '') + (item.end_date ? ' → ' + escapeHtml(item.end_date) : '') + '</div>' +
-                '</div>';
-            storageGrid.appendChild(card);
-        });
-        storageSection.appendChild(storageGrid);
+    if (storageGrid) {
+        storageGrid.innerHTML = '';
+        if (storageItems.length === 0) {
+            storageGrid.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><i class="fas fa-boxes" style="font-size:32px;opacity:0.3"></i><p>' + t('noTempCustody') + '</p></div>';
+        } else {
+            storageItems.forEach(function(item) {
+                var card = document.createElement('div');
+                card.className = 'equip-card emp-custody-storage-card';
+                var safeName = escapeHtml(item.item_name || '').replace(/'/g, "\\'");
+                card.innerHTML =
+                    '<div class="incoming-card-banner" style="background:linear-gradient(135deg,rgba(245,158,11,0.2),rgba(245,158,11,0.05));color:#f59e0b;border-bottom:1px solid rgba(245,158,11,0.2);padding:6px 10px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px"><i class="fas fa-inbox"></i> ' + (t('underTempCustody') || 'Temp Custody') + '</div>' +
+                    '<div class="equip-card-img">' + (item.item_image ? '<img src="' + escapeHtml(item.item_image) + '">' : '<i class="fas ' + (item.entity_type === 'locker_item' ? 'fa-box-open' : 'fa-warehouse') + '"></i>') + '</div>' +
+                    '<div class="equip-card-body">' +
+                        '<div class="equip-card-name">' + escapeHtml(item.item_name || '') + '</div>' +
+                        '<div class="equip-card-meta"><i class="fas ' + (item.entity_type === 'locker_item' ? 'fa-box-open' : 'fa-warehouse') + '"></i> ' + escapeHtml(item.locker_name || item.zone_name || '') + '</div>' +
+                        '<div class="equip-card-meta"><i class="fas fa-calendar"></i> ' + escapeHtml(item.start_date || item.transfer_date || '') + (item.end_date ? ' → ' + escapeHtml(item.end_date) : '') + '</div>' +
+                    '</div>' +
+                    '<div class="incoming-card-actions">' +
+                        '<button class="equip-action equip-action-return" onclick="openItemCustodyModal(' + item.item_id + ',\'' + safeName + '\',\'' + item.entity_type + '\')"><i class="fas fa-pen"></i><span>' + (t('manageCustody') || 'Manage') + '</span></button>' +
+                    '</div>';
+                storageGrid.appendChild(card);
+            });
+        }
     }
+}
+
+function printEmpStorage() {
+    var emp = currentEmpData || {};
+    var rows = emp.incoming_storage_items || [];
+    printTable({
+        title: (emp.name || '') + ' — ' + t('tempCustodyTab'),
+        subtitle: (emp.name || '') + (emp.department_name ? '  •  ' + emp.department_name : ''),
+        columns: [
+            { label: t('itemName'), value: function(r){ return r.item_name || ''; } },
+            { label: t('category'), value: function(r){ return r.entity_type === 'equipment' || r.entity_type === 'warehouse_item' ? t('warehouse') : t('locker'); } },
+            { label: t('location'), value: function(r){ return r.locker_name || r.zone_name || ''; } },
+            { label: t('custodyPeriod'), value: function(r){ return (r.start_date || r.transfer_date || '') + (r.end_date ? ' → ' + r.end_date : ''); } },
+            { label: t('conditionOnReceipt'), value: function(r){ return r.condition === 'good' ? t('conditionGood') : r.condition === 'not_good' ? t('conditionNotGood') : ''; } },
+            { label: t('additionalNotes'), value: function(r){ return r.notes || ''; } }
+        ],
+        rows: rows
+    });
 }
 
 // ---- Edit a custody item's qty / receipt date / condition directly from the
@@ -4533,21 +4569,23 @@ async function openItemCustodyModal(itemId, itemName, entityType) {
     if (curPanel) curPanel.style.display = 'none';
     document.getElementById('itemCustodyModal').classList.add('active');
 
-    // Quantity only applies to warehouse items — transferring custody there
-    // actually moves stock out, so the user needs to pick how much leaves.
+    // Custody transfer moves real stock out of the locker/warehouse (see
+    // routes/items.js and routes/warehouse.js), so the user picks how much
+    // leaves. Fetched fresh via a single-item GET rather than the cached
+    // zone/locker data, since this modal can be opened from pages that never
+    // loaded that cache (e.g. an employee's Temporary Custody tab).
     var qtyField = document.getElementById('itemCustodyQtyField');
     var qtyInput = document.getElementById('itemCustodyQty');
     var qtyHint = document.getElementById('itemCustodyQtyHint');
-    if (_itemCustody.type === 'warehouse_item') {
-        var whItem = _findWarehouseItem(itemId);
-        var avail = whItem ? Math.max(1, Number(whItem.qty) || 1) : 1;
+    if (qtyField) qtyField.style.display = 'none';
+    try {
+        var liveItem = _itemCustody.type === 'warehouse_item' ? await API.getWarehouseItem(itemId) : await API.getItem(itemId);
+        var avail = Math.max(1, Number(liveItem.qty) || 1);
         qtyInput.max = avail;
         qtyInput.value = avail;
         if (qtyHint) qtyHint.textContent = '(' + (t('stock') || 'available') + ': ' + avail + ')';
         if (qtyField) qtyField.style.display = '';
-    } else if (qtyField) {
-        qtyField.style.display = 'none';
-    }
+    } catch (e) { /* item may already be gone — leave the qty field hidden */ }
     var empSel = document.getElementById('itemCustodyEmpSel');
     var deptSel = document.getElementById('itemCustodyDeptSel');
     empSel.innerHTML = '<option value="">' + t('selectEmployee') + '</option>';
@@ -4623,36 +4661,43 @@ async function submitItemCustodyTransfer() {
     payload.condition = condEl ? condEl.value : 'good';
     payload.condition_notes = document.getElementById('itemCustodyCondNotes').value.trim();
     if (payload.condition === 'not_good' && !payload.condition_notes) { showToast(t('conditionNotes'), 'error'); return; }
-    if (_itemCustody.type === 'warehouse_item') {
-        var qtyInput = document.getElementById('itemCustodyQty');
-        var maxQty = parseInt(qtyInput.max) || 1;
-        var reqQty = parseInt(qtyInput.value);
-        if (isNaN(reqQty) || reqQty < 1) { showToast(t('qty'), 'error'); return; }
-        payload.qty = Math.min(maxQty, reqQty);
-    }
+    var qtyInput = document.getElementById('itemCustodyQty');
+    var maxQty = parseInt(qtyInput.max) || 1;
+    var reqQty = parseInt(qtyInput.value);
+    if (isNaN(reqQty) || reqQty < 1) { showToast(t('qty'), 'error'); return; }
+    payload.qty = Math.min(maxQty, reqQty);
     try {
-        if (_itemCustody.type === 'warehouse_item') {
-            await API.addWarehouseItemCustody(_itemCustody.id, payload);
-            // The transferred quantity has left the warehouse (and the item row
-            // may be gone entirely), so there's nothing left to show in this
-            // modal — close it and refresh the zone/area view instead of
-            // reopening the (possibly deleted) item's custody dialog.
-            closeModal('itemCustodyModal');
-            if (currentZoneId) {
-                currentZoneData = await API.getZone(currentZoneId);
-                if (currentAreaId) {
-                    var area = currentZoneData.areas.find(function(a) { return a.id === currentAreaId; });
-                    if (area) openAreaItems(currentAreaId, area.name); else closeModal('areaItemsModal');
-                }
-            }
-        } else {
-            await API.addLockerItemCustody(_itemCustody.id, payload);
-            var iName = document.getElementById('itemCustodyItemName').textContent.replace(' — ', '');
-            await openItemCustodyModal(_itemCustody.id, iName, _itemCustody.type);
-            if (currentLockerId) { currentLockerData = await API.getLocker(currentLockerId); renderItems(); }
-        }
+        if (_itemCustody.type === 'warehouse_item') await API.addWarehouseItemCustody(_itemCustody.id, payload);
+        else await API.addLockerItemCustody(_itemCustody.id, payload);
+        // Both types are a real move now — the transferred quantity has left
+        // the locker/warehouse (and the source row may be gone entirely), so
+        // there's nothing left to show in this modal. Close it and refresh
+        // whichever source/destination views are currently on screen.
+        closeModal('itemCustodyModal');
+        await _refreshAfterCustodyMove();
         showToast(t('custodyTransferred') || 'Transferred to custody');
     } catch(e) { showToast(e.message, 'error'); }
+}
+
+// Shared post-transfer/return refresh: reload whatever source view (warehouse
+// zone/area, locker) and/or destination view (employee page) are currently
+// on screen so the move is reflected everywhere without a manual reload.
+async function _refreshAfterCustodyMove() {
+    if (_itemCustody.type === 'warehouse_item' && currentZoneId) {
+        currentZoneData = await API.getZone(currentZoneId);
+        if (currentAreaId) {
+            var area = currentZoneData.areas.find(function(a) { return a.id === currentAreaId; });
+            if (area) openAreaItems(currentAreaId, area.name); else closeModal('areaItemsModal');
+        }
+    }
+    if (_itemCustody.type === 'locker_item' && currentLockerId) {
+        currentLockerData = await API.getLocker(currentLockerId);
+        renderItems();
+    }
+    if (currentEmpId && currentPage === 'emp-detail') {
+        currentEmpData = await API.getEmployee(currentEmpId);
+        await renderEmpItems();
+    }
 }
 
 async function returnItemCustody() {
@@ -4662,14 +4707,7 @@ async function returnItemCustody() {
         else await API.returnLockerItemCustody(_itemCustody.id, {});
         var iName = document.getElementById('itemCustodyItemName').textContent.replace(' — ', '');
         await openItemCustodyModal(_itemCustody.id, iName, _itemCustody.type);
-        if (_itemCustody.type === 'warehouse_item') {
-            if (currentZoneId) {
-                currentZoneData = await API.getZone(currentZoneId);
-                if (currentAreaId) { var area = currentZoneData.areas.find(function(a) { return a.id === currentAreaId; }); if (area) openAreaItems(currentAreaId, area.name); }
-            }
-        } else {
-            if (currentLockerId) { currentLockerData = await API.getLocker(currentLockerId); renderItems(); }
-        }
+        await _refreshAfterCustodyMove();
         showToast(t('returnedSuccessfully') || 'Returned successfully');
     } catch(e) { showToast(e.message, 'error'); }
 }

@@ -161,6 +161,15 @@ module.exports = function (db) {
         res.status(201).json(item.rows[0]);
     });
 
+    // Single-item fetch — used by the custody dialog to read a live qty
+    // regardless of which page it was opened from (it may not have the
+    // zone's item list cached, e.g. when opened from an employee page).
+    router.get('/items/:id', async (req, res) => {
+        const result = await db.execute({ sql: 'SELECT * FROM warehouse_items WHERE id = ?', args: [req.params.id] });
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Item not found' });
+        res.json(result.rows[0]);
+    });
+
     router.put('/items/:id', async (req, res) => {
         const { name, qty, description, min_stock, image, area_id, condition } = req.body;
         if (name !== undefined) await db.execute({ sql: 'UPDATE warehouse_items SET name = ? WHERE id = ?', args: [name.trim(), req.params.id] });
