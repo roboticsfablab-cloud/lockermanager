@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FABY Keeper</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%237b2ff7'/%3E%3Cstop offset='100%25' stop-color='%2300d2ff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='100' height='100' rx='22' fill='url(%23g)'/%3E%3Crect x='28' y='18' width='44' height='52' rx='6' fill='none' stroke='white' stroke-width='5'/%3E%3Ccircle cx='50' cy='42' r='8' fill='none' stroke='white' stroke-width='4'/%3E%3Crect x='47' y='48' width='6' height='12' rx='2' fill='white'/%3E%3Crect x='22' y='72' width='56' height='12' rx='4' fill='rgba(255,255,255,0.35)'/%3E%3C/svg%3E">
-    <link rel="stylesheet" href="/css/style.css?v=16">
+    <link rel="stylesheet" href="/css/style.css?v=17">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -657,6 +657,10 @@
                 <button class="btn-print emp-tab-print" onclick="printEmpHistory()" title="Print custody history" data-i18n-title="printHistoryTitle">
                     <i class="fas fa-print"></i>
                     <span data-i18n="printHistory">Print History</span>
+                </button>
+                <button class="btn-print emp-tab-print" onclick="printEmpSignatureSheet()" title="Print custody signature sheet" data-i18n-title="printSignatureTitle">
+                    <i class="fas fa-file-signature"></i>
+                    <span data-i18n="printSignatureSheet">Print Signature Sheet</span>
                 </button>
             </div>
 
@@ -1765,9 +1769,14 @@
     <div class="modal-content modal-lg">
         <div class="modal-header">
             <h2><i class="fas fa-hand-holding"></i> <span data-i18n="custodyItems">All Custody Items</span></h2>
-            <button class="modal-close" onclick="closeModal('allCustodyPanel')">
-                <i class="fas fa-times"></i>
-            </button>
+            <div class="modal-header-actions">
+                <button class="btn-print-icon" onclick="printAllCustodyItems()" title="Print all custody items" data-i18n-title="printAllCustodyTitle">
+                    <i class="fas fa-print"></i>
+                </button>
+                <button class="modal-close" onclick="closeModal('allCustodyPanel')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
         </div>
         <div class="modal-body">
             <div class="all-custody-grid" id="allCustodyBody"></div>
@@ -1859,7 +1868,12 @@
                 <span data-i18n="transferCustody">Transfer to Custody</span>
                 <span class="covenant-item-name" id="itemCustodyItemName"></span>
             </h2>
-            <button class="modal-close" onclick="closeModal('itemCustodyModal')"><i class="fas fa-times"></i></button>
+            <div class="modal-header-actions">
+                <button class="btn-print-icon" onclick="printItemCustodyHistory()" title="Print" data-i18n-title="printBtn">
+                    <i class="fas fa-print"></i>
+                </button>
+                <button class="modal-close" onclick="closeModal('itemCustodyModal')"><i class="fas fa-times"></i></button>
+            </div>
         </div>
         <div class="modal-body">
             <div id="itemCurrentCustodyPanel" class="covenant-current-panel" style="display:none"></div>
@@ -1878,6 +1892,10 @@
                     <div class="form-field" id="itemCustodyDeptField" style="display:none">
                         <label data-i18n="targetDepartment">Target Department</label>
                         <select id="itemCustodyDeptSel"><option value="" data-i18n="selectDepartment">Select Department</option></select>
+                    </div>
+                    <div class="form-field" id="itemCustodyQtyField" style="display:none">
+                        <label data-i18n="qty">Qty</label> <span class="custody-qty-hint" id="itemCustodyQtyHint"></span>
+                        <input type="number" id="itemCustodyQty" min="1" step="1">
                     </div>
                     <div class="form-field">
                         <label data-i18n="startDate">Start Date</label>
@@ -1912,8 +1930,8 @@
 </div>
 
 <!-- Scripts -->
-<script src="/js/api.js?v=26"></script>
-<script src="/js/app.js?v=26"></script>
+<script src="/js/api.js?v=27"></script>
+<script src="/js/app.js?v=27"></script>
 
 </body>
 </html>

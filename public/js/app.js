@@ -128,6 +128,13 @@ const i18n = {
         printIncomingTitle:'Print incoming',
         printCurrentTitle:'Print current custody',
         printHistoryTitle:'Print custody history',
+        printSignatureSheet:'Print Signature Sheet', printSignatureTitle:'Print custody signature sheet',
+        signatureSheetTitle:'Custody Receipt & Undertaking', signatureSheetSubtitle:'Signature Sheet',
+        custodyDeclarationText:'I, the undersigned, acknowledge that I have received the item(s) listed above and that they are under my personal custody. I undertake to take good care of them, use them only for the intended purpose, and return them in good condition upon request or at the end of the custody period stated above.',
+        employeeSignatureLabel:'Employee Signature', managerSignatureLabel:'Delegated / Received By',
+        signatureLine:'Signature', dateLine:'Date', custodyDurationDays:'{n} days',
+        printAllCustody:'Print', printAllCustodyTitle:'Print all custody items',
+        allCustodyReportTitle:'All Custody Items — Report',
         quantity:'Quantity', minStockTitle:'Min stock',
         uploadImage:'Upload image',
         popupBlocked:'Popup blocked',
@@ -296,6 +303,13 @@ const i18n = {
         printIncomingTitle:'طباعة الواردة',
         printCurrentTitle:'طباعة العهدة الحالية',
         printHistoryTitle:'طباعة سجل العهدة',
+        printSignatureSheet:'طباعة كشف التوقيع', printSignatureTitle:'طباعة كشف توقيع العهدة',
+        signatureSheetTitle:'إقرار استلام وتعهد بعهدة', signatureSheetSubtitle:'كشف التوقيع',
+        custodyDeclarationText:'أقر أنا الموقع أدناه بأنني استلمت العنصر (العناصر) المذكورة أعلاه وأنها في عهدتي الشخصية، وأتعهد بالمحافظة عليها جيداً واستخدامها للغرض المخصص لها فقط، وإعادتها بحالة جيدة عند الطلب أو عند انتهاء مدة العهدة المذكورة أعلاه.',
+        employeeSignatureLabel:'توقيع الموظف', managerSignatureLabel:'التسليم / الاستلام بواسطة',
+        signatureLine:'التوقيع', dateLine:'التاريخ', custodyDurationDays:'{n} يوم',
+        printAllCustody:'طباعة', printAllCustodyTitle:'طباعة جميع عناصر العهدة',
+        allCustodyReportTitle:'جميع عناصر العهدة — تقرير',
         quantity:'الكمية', minStockTitle:'الحد الأدنى للمخزون',
         uploadImage:'رفع صورة',
         popupBlocked:'تم حظر النافذة المنبثقة',
@@ -2665,6 +2679,8 @@ function showAllEmps() {
     if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+var _allCustodyCache = [];
+
 async function showAllCustodyItems() {
     var body = document.getElementById('allCustodyBody');
     body.innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> ' + t('loading') + '</div>';
@@ -2681,6 +2697,7 @@ async function showAllCustodyItems() {
                 allItems.push(item);
             });
         }
+        _allCustodyCache = allItems;
         body.innerHTML = '';
         if (allItems.length === 0) {
             body.innerHTML = '<div class="empty-state"><i class="fas fa-hand-holding"></i><p>' + t('noItems') + '</p></div>';
@@ -2719,6 +2736,33 @@ async function showAllCustodyItems() {
     } catch (e) {
         body.innerHTML = '<div class="empty-state"><p>' + t('failedLoad') + '</p></div>';
     }
+}
+
+function printAllCustodyItems() {
+    var rows = _allCustodyCache || [];
+    printTable({
+        title: t('allCustodyReportTitle'),
+        orientation: 'landscape',
+        columns: [
+            { label: t('employeeName'), value: function(r){ return r._empName || ''; } },
+            { label: t('itemName'), value: function(r){ return r.name || ''; } },
+            { label: t('category'), value: function(r){ return r.entity_type === 'equipment' ? t('equipment') : t('items'); } },
+            { label: t('qty'), value: function(r){ return r.qty; } },
+            { label: t('sourceDepartment'), value: function(r){ return r.department_name || ''; } },
+            { label: t('status'), value: function(r){
+                var s = r.covenant_status || r.status || t('active');
+                if (s === 'returned') return t('returned');
+                if (s === 'transferred') return t('transferred');
+                return t('active');
+            } },
+            { label: t('custodyPeriod'), value: function(r){
+                var a = getActiveCustody(r);
+                if (a) return (a.start_date||a.transfer_date||'') + (a.end_date ? ' → '+a.end_date : '');
+                return r.receipt_date || r.start_date || '';
+            } }
+        ],
+        rows: rows
+    });
 }
 
 // ============ Employees ============
@@ -4455,6 +4499,22 @@ async function openItemCustodyModal(itemId, itemName, entityType) {
     timeline.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i></div>';
     if (curPanel) curPanel.style.display = 'none';
     document.getElementById('itemCustodyModal').classList.add('active');
+
+    // Quantity only applies to warehouse items — transferring custody there
+    // actually moves stock out, so the user needs to pick how much leaves.
+    var qtyField = document.getElementById('itemCustodyQtyField');
+    var qtyInput = document.getElementById('itemCustodyQty');
+    var qtyHint = document.getElementById('itemCustodyQtyHint');
+    if (_itemCustody.type === 'warehouse_item') {
+        var whItem = _findWarehouseItem(itemId);
+        var avail = whItem ? Math.max(1, Number(whItem.qty) || 1) : 1;
+        qtyInput.max = avail;
+        qtyInput.value = avail;
+        if (qtyHint) qtyHint.textContent = '(' + (t('stock') || 'available') + ': ' + avail + ')';
+        if (qtyField) qtyField.style.display = '';
+    } else if (qtyField) {
+        qtyField.style.display = 'none';
+    }
     var empSel = document.getElementById('itemCustodyEmpSel');
     var deptSel = document.getElementById('itemCustodyDeptSel');
     empSel.innerHTML = '<option value="">' + t('selectEmployee') + '</option>';
@@ -4468,6 +4528,8 @@ async function openItemCustodyModal(itemId, itemName, entityType) {
         var history = _itemCustody.type === 'warehouse_item'
             ? await API.getWarehouseItemCustody(itemId)
             : await API.getLockerItemCustody(itemId);
+        _itemCustody.history = history || [];
+        _itemCustody.name = itemName || '';
         timeline.innerHTML = '';
         var active = null;
         if (history && history.length) { for (var i = 0; i < history.length; i++) { if (history[i].status === 'active') { active = history[i]; break; } } }
@@ -4528,17 +4590,32 @@ async function submitItemCustodyTransfer() {
     payload.condition = condEl ? condEl.value : 'good';
     payload.condition_notes = document.getElementById('itemCustodyCondNotes').value.trim();
     if (payload.condition === 'not_good' && !payload.condition_notes) { showToast(t('conditionNotes'), 'error'); return; }
+    if (_itemCustody.type === 'warehouse_item') {
+        var qtyInput = document.getElementById('itemCustodyQty');
+        var maxQty = parseInt(qtyInput.max) || 1;
+        var reqQty = parseInt(qtyInput.value);
+        if (isNaN(reqQty) || reqQty < 1) { showToast(t('qty'), 'error'); return; }
+        payload.qty = Math.min(maxQty, reqQty);
+    }
     try {
-        if (_itemCustody.type === 'warehouse_item') await API.addWarehouseItemCustody(_itemCustody.id, payload);
-        else await API.addLockerItemCustody(_itemCustody.id, payload);
-        var iName = document.getElementById('itemCustodyItemName').textContent.replace(' — ', '');
-        await openItemCustodyModal(_itemCustody.id, iName, _itemCustody.type);
         if (_itemCustody.type === 'warehouse_item') {
+            await API.addWarehouseItemCustody(_itemCustody.id, payload);
+            // The transferred quantity has left the warehouse (and the item row
+            // may be gone entirely), so there's nothing left to show in this
+            // modal — close it and refresh the zone/area view instead of
+            // reopening the (possibly deleted) item's custody dialog.
+            closeModal('itemCustodyModal');
             if (currentZoneId) {
                 currentZoneData = await API.getZone(currentZoneId);
-                if (currentAreaId) { var area = currentZoneData.areas.find(function(a) { return a.id === currentAreaId; }); if (area) openAreaItems(currentAreaId, area.name); }
+                if (currentAreaId) {
+                    var area = currentZoneData.areas.find(function(a) { return a.id === currentAreaId; });
+                    if (area) openAreaItems(currentAreaId, area.name); else closeModal('areaItemsModal');
+                }
             }
         } else {
+            await API.addLockerItemCustody(_itemCustody.id, payload);
+            var iName = document.getElementById('itemCustodyItemName').textContent.replace(' — ', '');
+            await openItemCustodyModal(_itemCustody.id, iName, _itemCustody.type);
             if (currentLockerId) { currentLockerData = await API.getLocker(currentLockerId); renderItems(); }
         }
         showToast(t('custodyTransferred') || 'Transferred to custody');
@@ -4562,6 +4639,25 @@ async function returnItemCustody() {
         }
         showToast(t('returnedSuccessfully') || 'Returned successfully');
     } catch(e) { showToast(e.message, 'error'); }
+}
+
+function printItemCustodyHistory() {
+    var rows = _itemCustody.history || [];
+    printTable({
+        title: (_itemCustody.name || '') + ' — ' + t('custodyHistory'),
+        columns: [
+            { label: t('currentlyWith'), value: function(r){ return r.to_department_id ? (r.to_department_name || '') : (r.to_employee_name || ''); } },
+            { label: t('custodyPeriod'), value: function(r){ return (r.start_date || r.transfer_date || '') + (r.end_date ? ' → ' + r.end_date : ''); } },
+            { label: t('conditionOnReceipt'), value: function(r){ return r.condition === 'good' ? t('conditionGood') : r.condition === 'not_good' ? t('conditionNotGood') : ''; } },
+            { label: t('status'), value: function(r){
+                if (r.status === 'returned') return t('returned');
+                if (r.status === 'transferred') return t('transferred');
+                return t('active');
+            } },
+            { label: t('additionalNotes'), value: function(r){ return r.notes || ''; } }
+        ],
+        rows: rows
+    });
 }
 
 // ============ Init ============
@@ -4936,4 +5032,116 @@ function printEmpHistory() {
         ],
         rows: filtered
     });
+}
+
+// ---- Employee: custody signature sheet (formal receipt + undertaking) ----
+// Not a generic table like the other print views — this is a document meant
+// to be physically signed, so it carries a declaration paragraph and a
+// signature block alongside the item list. Follows the same window.open /
+// write-html / auto-print pattern as printTable() (see above) so it inherits
+// the same RTL-for-Arabic behavior.
+function printEmpSignatureSheet() {
+    var emp = currentEmpData || {};
+    var items = emp.items || [];
+    if (!items.length) { showToast(t('noData'), 'warning'); return; }
+
+    var now = new Date();
+    var stamp = now.toLocaleString();
+    var esc = escapeHtml;
+
+    var durationDays = function(r) {
+        var start = r.receipt_date || r.start_date;
+        if (!start) return '';
+        var d = Math.floor((now - new Date(start)) / (1000 * 60 * 60 * 24));
+        return isNaN(d) || d < 0 ? '' : (t('custodyDurationDays') || '{n} days').replace('{n}', d);
+    };
+
+    var totalQty = items.reduce(function(s, r) { return s + (Number(r.qty) || 0); }, 0);
+
+    var rowsHtml = items.map(function(r, idx) {
+        return '<tr>' +
+            '<td>' + (idx + 1) + '</td>' +
+            '<td>' + esc(r.name || '') + '</td>' +
+            '<td>' + esc(r.description || '') + '</td>' +
+            '<td>' + esc(r.qty != null ? r.qty : '') + '</td>' +
+            '<td>' + esc(r.receipt_date || r.start_date || '') + '</td>' +
+            '<td>' + esc(durationDays(r)) + '</td>' +
+            '</tr>';
+    }).join('');
+
+    var rtl = currentLang === 'ar';
+    var html =
+'<!DOCTYPE html><html lang="' + (currentLang || 'en') + '" dir="' + (rtl ? 'rtl' : 'ltr') + '">' +
+'<head><meta charset="utf-8"><title>' + esc(t('signatureSheetTitle')) + '</title>' +
+'<style>' +
+'  @page { size: portrait; margin: 16mm 14mm 18mm; }' +
+'  * { box-sizing: border-box; }' +
+'  body { font-family: "Helvetica Neue", Arial, sans-serif; color: #000; background: #fff; margin: 0; font-size: 11pt; }' +
+'  .print-header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 14px; }' +
+'  .print-header h1 { margin: 0 0 2px; font-size: 16pt; }' +
+'  .print-header .sub { font-size: 10pt; color: #333; }' +
+'  .print-header .meta { font-size: 9pt; color: #444; text-align: right; }' +
+'  [dir="rtl"] .print-header .meta { text-align: left; }' +
+'  .sheet-emp-block { display: flex; flex-wrap: wrap; gap: 4px 28px; margin-bottom: 16px; padding: 10px 14px; background: #f6f6f6; border: 1px solid #ccc; border-radius: 6px; }' +
+'  .sheet-emp-item { font-size: 10.5pt; }' +
+'  .sheet-emp-item b { display: inline-block; min-width: 90px; }' +
+'  table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }' +
+'  th, td { border: 1px solid #444; padding: 5px 7px; text-align: left; vertical-align: top; font-size: 10pt; }' +
+'  [dir="rtl"] th, [dir="rtl"] td { text-align: right; }' +
+'  th { background: #eaeaea; font-weight: 700; text-transform: uppercase; font-size: 9pt; }' +
+'  tbody tr:nth-child(even) td { background: #f6f6f6; }' +
+'  .sheet-declaration { margin: 16px 0; padding: 12px 14px; border: 1px solid #999; border-radius: 6px; font-size: 10.5pt; line-height: 1.6; background: #fafafa; }' +
+'  .sheet-signatures { display: flex; justify-content: space-between; gap: 30px; margin-top: 46px; }' +
+'  .sheet-sig-block { flex: 1; }' +
+'  .sheet-sig-name { font-size: 10.5pt; margin-bottom: 26px; }' +
+'  .sheet-sig-line { border-top: 1px solid #000; padding-top: 4px; font-size: 9.5pt; color: #333; display: flex; justify-content: space-between; }' +
+'  @media print { .no-print { display: none !important; } }' +
+'  .no-print { position: fixed; top: 10px; right: 10px; display: flex; gap: 8px; z-index: 100; }' +
+'  [dir="rtl"] .no-print { right: auto; left: 10px; }' +
+'  .no-print button { padding: 8px 16px; border: 1px solid #333; background: #fff; color: #000; font-size: 10pt; font-weight: 600; border-radius: 6px; cursor: pointer; }' +
+'  .no-print button.primary { background: #000; color: #fff; }' +
+'</style></head>' +
+'<body>' +
+'<div class="no-print">' +
+'  <button onclick="window.print()" class="primary">🖨️ Print</button>' +
+'  <button onclick="window.close()">Close</button>' +
+'</div>' +
+'<div class="print-header">' +
+'  <div>' +
+'    <h1>' + esc(t('signatureSheetTitle')) + '</h1>' +
+'    <div class="sub">' + esc(t('signatureSheetSubtitle')) + '</div>' +
+'  </div>' +
+'  <div class="meta">' + esc(t('generatedOn')) + ': ' + esc(stamp) + '</div>' +
+'</div>' +
+'<div class="sheet-emp-block">' +
+'  <div class="sheet-emp-item"><b>' + esc(t('employeeName')) + ':</b> ' + esc(emp.name || '') + '</div>' +
+(emp.job_title ? '  <div class="sheet-emp-item"><b>' + esc(t('jobTitle')) + ':</b> ' + esc(emp.job_title) + '</div>' : '') +
+(emp.department_name ? '  <div class="sheet-emp-item"><b>' + esc(t('department')) + ':</b> ' + esc(emp.department_name) + '</div>' : '') +
+'  <div class="sheet-emp-item"><b>' + esc(t('items')) + ':</b> ' + items.length + '</div>' +
+'  <div class="sheet-emp-item"><b>' + esc(t('qty')) + ':</b> ' + totalQty + '</div>' +
+'</div>' +
+'<table><thead><tr>' +
+'  <th>#</th><th>' + esc(t('itemName')) + '</th><th>' + esc(t('description')) + '</th><th>' + esc(t('qty')) + '</th><th>' + esc(t('receiptDate')) + '</th><th>' + esc(t('custodyDuration')) + '</th>' +
+'</tr></thead><tbody>' + rowsHtml + '</tbody></table>' +
+'<div class="sheet-declaration">' + esc(t('custodyDeclarationText')) + '</div>' +
+'<div class="sheet-signatures">' +
+'  <div class="sheet-sig-block">' +
+'    <div class="sheet-sig-name">' + esc(emp.name || '') + '</div>' +
+'    <div class="sheet-sig-line"><span>' + esc(t('employeeSignatureLabel')) + '</span><span>' + esc(t('dateLine')) + ': ____________</span></div>' +
+'  </div>' +
+'  <div class="sheet-sig-block">' +
+'    <div class="sheet-sig-name">&nbsp;</div>' +
+'    <div class="sheet-sig-line"><span>' + esc(t('managerSignatureLabel')) + '</span><span>' + esc(t('dateLine')) + ': ____________</span></div>' +
+'  </div>' +
+'</div>' +
+'<script>' +
+'  window.addEventListener("load", function(){ setTimeout(function(){ window.print(); }, 300); });' +
+'<\/script>' +
+'</body></html>';
+
+    var w = window.open('', '_blank');
+    if (!w) { showToast(t('popupBlocked'), 'error'); return; }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
 }

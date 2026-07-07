@@ -347,19 +347,83 @@ module.exports = function (db) {
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
+    // Custody transfer = a REAL move: the transferred quantity leaves the
+    // warehouse (qty decremented, row deleted once empty) and lands as a
+    // normal row in department_items, exactly like "add item to employee"
+    // (routes/employees.js). Two non-active ('transferred') covenant_history
+    // rows are logged purely for audit/history — they never flip the
+    // "active custody" badges since those only key off status==='active'.
     router.post('/items/:id/custody', async (req, res) => {
         try {
             const item = await db.execute({ sql: 'SELECT * FROM warehouse_items WHERE id = ?', args: [req.params.id] });
             if (item.rows.length === 0) return res.status(404).json({ error: 'Item not found' });
-            const { to_employee_id, to_department_id, transfer_date, start_date, end_date, condition, condition_notes, notes } = req.body;
-            await db.execute({ sql: `UPDATE covenant_history SET status='transferred' WHERE item_id=? AND entity_type='warehouse_item' AND status='active'`, args: [req.params.id] });
+            const wi = item.rows[0];
+            const { to_employee_id, to_department_id, transfer_date, start_date, end_date, condition, condition_notes, notes, qty } = req.body;
+            if (!to_employee_id && !to_department_id) return res.status(400).json({ error: 'Target employee or department required' });
+
+            const available = Number(wi.qty) || 0;
+            if (available < 1) return res.status(400).json({ error: 'Item has no available stock to transfer' });
+            const requested = parseInt(qty);
+            const moveQty = Math.min(available, Math.max(1, isNaN(requested) ? available : requested));
+
+            let destDeptId = null;
+            let destEmployeeId = null;
+            if (to_employee_id) {
+                const emp = await db.execute({ sql: 'SELECT id, department_id FROM employees WHERE id = ?', args: [to_employee_id] });
+                if (emp.rows.length === 0) return res.status(404).json({ error: 'Employee not found' });
+                if (!emp.rows[0].department_id) return res.status(400).json({ error: 'Employee must belong to a department' });
+                destDeptId = emp.rows[0].department_id;
+                destEmployeeId = to_employee_id;
+            } else {
+                const dep = await db.execute({ sql: 'SELECT id FROM departments WHERE id = ?', args: [to_department_id] });
+                if (dep.rows.length === 0) return res.status(404).json({ error: 'Target department not found' });
+                destDeptId = to_department_id;
+            }
+
+            // Safety net for any pre-existing dangling 'active' row from before this
+            // item started actually moving on transfer (legacy data only).
+            await db.execute({ sql: "UPDATE covenant_history SET status='transferred' WHERE item_id=? AND entity_type='warehouse_item' AND status='active'", args: [wi.id] });
+
             const today = new Date().toISOString().split('T')[0];
-            const result = await db.execute({
-                sql: `INSERT INTO covenant_history (entity_type, item_id, to_employee_id, to_department_id, transfer_date, start_date, end_date, status, condition, condition_notes, notes) VALUES ('warehouse_item', ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`,
-                args: [req.params.id, to_employee_id || null, to_department_id || null, transfer_date || today, start_date || today, end_date || '', condition || '', condition_notes || '', notes || '']
+            const receiptDate = start_date || transfer_date || today;
+
+            const deptItemResult = await db.execute({
+                sql: `INSERT INTO department_items (department_id, employee_id, name, description, qty, image, condition, receipt_date, purpose)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                args: [destDeptId, destEmployeeId, wi.name, wi.description || '', moveQty, wi.image || '', wi.condition || 'new', receiptDate, notes || '']
             });
-            const created = await db.execute({ sql: `SELECT ch.*, e.name AS to_employee_name, d.name AS to_department_name FROM covenant_history ch LEFT JOIN employees e ON e.id=ch.to_employee_id LEFT JOIN departments d ON d.id=ch.to_department_id WHERE ch.id=?`, args: [Number(result.lastInsertRowid)] });
-            res.status(201).json(created.rows[0]);
+            const newDeptItemId = Number(deptItemResult.lastInsertRowid);
+
+            const remaining = available - moveQty;
+            if (remaining <= 0) {
+                await db.execute({ sql: 'DELETE FROM warehouse_items WHERE id = ?', args: [wi.id] });
+            } else {
+                await db.execute({ sql: 'UPDATE warehouse_items SET qty = ? WHERE id = ?', args: [remaining, wi.id] });
+            }
+
+            // Resolve zone/area names for a readable audit trail before the source row is gone.
+            let zoneName = '', areaName = '';
+            const zone = await db.execute({ sql: 'SELECT name FROM warehouse_zones WHERE id = ?', args: [wi.zone_id] });
+            if (zone.rows.length) zoneName = zone.rows[0].name || '';
+            if (wi.area_id) {
+                const area = await db.execute({ sql: 'SELECT name FROM warehouse_areas WHERE id = ?', args: [wi.area_id] });
+                if (area.rows.length) areaName = area.rows[0].name || '';
+            }
+            const destLabel = destEmployeeId ? ('employee #' + destEmployeeId) : ('department #' + destDeptId);
+
+            await db.execute({
+                sql: `INSERT INTO covenant_history (entity_type, item_id, to_employee_id, to_department_id, transfer_date, start_date, end_date, status, condition, condition_notes, notes)
+                      VALUES ('warehouse_item', ?, ?, ?, ?, ?, ?, 'transferred', ?, ?, ?)`,
+                args: [wi.id, destEmployeeId, destEmployeeId ? null : destDeptId, transfer_date || today, receiptDate, end_date || '', condition || '', condition_notes || '', 'Transferred to ' + destLabel + ' · qty ' + moveQty + (notes ? ' — ' + notes : '')]
+            });
+            await db.execute({
+                sql: `INSERT INTO covenant_history (entity_type, item_id, to_employee_id, to_department_id, transfer_date, start_date, end_date, status, condition, condition_notes, notes)
+                      VALUES ('item', ?, ?, ?, ?, ?, ?, 'transferred', ?, ?, ?)`,
+                args: [newDeptItemId, destEmployeeId, destEmployeeId ? null : destDeptId, transfer_date || today, receiptDate, end_date || '', condition || '', condition_notes || '', 'Received from Warehouse: ' + zoneName + (areaName ? ' / ' + areaName : '') + ' · qty ' + moveQty]
+            });
+
+            const created = await db.execute({ sql: 'SELECT * FROM department_items WHERE id = ?', args: [newDeptItemId] });
+            res.status(201).json({ ...created.rows[0], warehouse_item_deleted: remaining <= 0, warehouse_item_remaining_qty: Math.max(0, remaining) });
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
