@@ -5118,10 +5118,10 @@ function printEmpSignatureSheet() {
     // — normalize both into one shape so the sheet covers everything the
     // employee currently holds, not just the department-owned half.
     var deptItems = (emp.items || []).map(function(r) {
-        return { name: r.name, description: r.description, qty: r.qty, receipt_date: r.receipt_date || r.start_date || '' };
+        return { name: r.name, description: r.description, qty: r.qty, receipt_date: r.receipt_date || r.start_date || '', end_date: r.end_date || '' };
     });
     var storageItems = (emp.incoming_storage_items || []).map(function(r) {
-        return { name: r.item_name, description: r.description, qty: null, receipt_date: r.start_date || r.transfer_date || '' };
+        return { name: r.item_name, description: r.description, qty: null, receipt_date: r.start_date || r.transfer_date || '', end_date: r.end_date || '' };
     });
     var items = deptItems.concat(storageItems);
     if (!items.length) { showToast(t('noData'), 'warning'); return; }
@@ -5130,10 +5130,17 @@ function printEmpSignatureSheet() {
     var stamp = now.toLocaleString();
     var esc = escapeHtml;
 
+    // Printed sheet is a formal record, not a live view: once a return date is
+    // set, duration is the fixed span between receipt and return, not days
+    // elapsed since receipt. Still-open custody (no return date yet) falls
+    // back to "days so far" — there's no end to measure against yet. This is
+    // distinct from the on-screen custody-card counter (renderEmpItems),
+    // which always counts receipt-to-today and keeps incrementing daily.
     var durationDays = function(r) {
         var start = r.receipt_date;
         if (!start) return '';
-        var d = Math.floor((now - new Date(start)) / (1000 * 60 * 60 * 24));
+        var endRef = r.end_date ? new Date(r.end_date) : now;
+        var d = Math.floor((endRef - new Date(start)) / (1000 * 60 * 60 * 24));
         return isNaN(d) || d < 0 ? '' : (t('custodyDurationDays') || '{n} days').replace('{n}', d);
     };
 
@@ -5145,7 +5152,8 @@ function printEmpSignatureSheet() {
             '<td>' + esc(r.name || '') + '</td>' +
             '<td>' + esc(r.description || '') + '</td>' +
             '<td>' + esc(r.qty != null ? r.qty : '') + '</td>' +
-            '<td>' + esc(r.receipt_date || r.start_date || '') + '</td>' +
+            '<td>' + esc(r.receipt_date || '') + '</td>' +
+            '<td>' + esc(r.end_date || '') + '</td>' +
             '<td>' + esc(durationDays(r)) + '</td>' +
             '</tr>';
     }).join('');
@@ -5202,7 +5210,7 @@ function printEmpSignatureSheet() {
 '  <div class="sheet-emp-item"><b>' + esc(t('qty')) + ':</b> ' + totalQty + '</div>' +
 '</div>' +
 '<table><thead><tr>' +
-'  <th>#</th><th>' + esc(t('itemName')) + '</th><th>' + esc(t('description')) + '</th><th>' + esc(t('qty')) + '</th><th>' + esc(t('receiptDate')) + '</th><th>' + esc(t('custodyDuration')) + '</th>' +
+'  <th>#</th><th>' + esc(t('itemName')) + '</th><th>' + esc(t('description')) + '</th><th>' + esc(t('qty')) + '</th><th>' + esc(t('receiptDate')) + '</th><th>' + esc(t('endDate')) + '</th><th>' + esc(t('custodyDuration')) + '</th>' +
 '</tr></thead><tbody>' + rowsHtml + '</tbody></table>' +
 '<div class="sheet-declaration">' + esc(t('custodyDeclarationText')) + '</div>' +
 '<div class="sheet-signatures">' +
