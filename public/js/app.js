@@ -4234,6 +4234,7 @@ function openEmpItemEditModal(id, entityType) {
     document.getElementById('empItemEditName').textContent = ' — ' + (item.name || '');
     document.getElementById('empItemEditQty').value = item.qty || 1;
     document.getElementById('empItemEditDate').value = item.receipt_date || '';
+    document.getElementById('empItemEditEndDate').value = item.end_date || '';
     document.getElementById('empItemEditCondition').value = item.condition || 'new';
     document.getElementById('empItemEditModal').classList.add('active');
 }
@@ -4245,6 +4246,7 @@ async function saveEmpItemEdit() {
     var data = {
         qty: qty,
         receipt_date: document.getElementById('empItemEditDate').value || '',
+        end_date: document.getElementById('empItemEditEndDate').value || '',
         condition: document.getElementById('empItemEditCondition').value
     };
     try {

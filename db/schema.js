@@ -7,7 +7,7 @@ const client = createClient({
 
 let initialized = false;
 
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 async function ensureTables() {
     if (initialized) return;
@@ -194,6 +194,9 @@ async function ensureTables() {
         // Schema v5: condition on department-level items + equipment, mirroring warehouse_items.
         `ALTER TABLE department_items ADD COLUMN condition TEXT NOT NULL DEFAULT 'new'`,
         `ALTER TABLE department_equipment ADD COLUMN condition TEXT NOT NULL DEFAULT 'new'`,
+        // Schema v7: expected return date, editable from the employee's Custody Items tab.
+        `ALTER TABLE department_items ADD COLUMN end_date TEXT DEFAULT ''`,
+        `ALTER TABLE department_equipment ADD COLUMN end_date TEXT DEFAULT ''`,
     ];
     for (const sql of migrations) {
         try { await client.execute(sql); } catch (e) { /* column exists */ }
@@ -252,6 +255,7 @@ async function ensureTables() {
                         qty INTEGER NOT NULL DEFAULT 1,
                         image TEXT DEFAULT '',
                         receipt_date TEXT DEFAULT '',
+                        end_date TEXT DEFAULT '',
                         purpose TEXT DEFAULT '',
                         condition TEXT NOT NULL DEFAULT 'new',
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -259,8 +263,8 @@ async function ensureTables() {
                         FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL
                     )`,
                     `INSERT INTO ${table}__new
-                        (id, department_id, employee_id, name, description, qty, image, receipt_date, purpose, condition, created_at)
-                     SELECT id, department_id, employee_id, name, COALESCE(description,''), qty, COALESCE(image,''), COALESCE(receipt_date,''), COALESCE(purpose,''), COALESCE(condition,'new'), created_at
+                        (id, department_id, employee_id, name, description, qty, image, receipt_date, end_date, purpose, condition, created_at)
+                     SELECT id, department_id, employee_id, name, COALESCE(description,''), qty, COALESCE(image,''), COALESCE(receipt_date,''), COALESCE(end_date,''), COALESCE(purpose,''), COALESCE(condition,'new'), created_at
                      FROM ${table}`,
                     `DROP TABLE ${table}`,
                     `ALTER TABLE ${table}__new RENAME TO ${table}`

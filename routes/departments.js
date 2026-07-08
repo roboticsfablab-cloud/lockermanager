@@ -209,12 +209,13 @@ module.exports = function (db) {
     });
 
     router.put('/items/:id', async (req, res) => {
-        const { name, description, qty, employee_id, receipt_date, purpose, condition } = req.body;
+        const { name, description, qty, employee_id, receipt_date, end_date, purpose, condition } = req.body;
         if (name !== undefined) await db.execute({ sql: 'UPDATE department_items SET name = ? WHERE id = ?', args: [name.trim(), req.params.id] });
         if (description !== undefined) await db.execute({ sql: 'UPDATE department_items SET description = ? WHERE id = ?', args: [description, req.params.id] });
         if (qty !== undefined) await db.execute({ sql: 'UPDATE department_items SET qty = ? WHERE id = ?', args: [Math.max(1, parseInt(qty)), req.params.id] });
         if (employee_id !== undefined) await db.execute({ sql: 'UPDATE department_items SET employee_id = ? WHERE id = ?', args: [employee_id, req.params.id] });
         if (receipt_date !== undefined) await db.execute({ sql: 'UPDATE department_items SET receipt_date = ? WHERE id = ?', args: [receipt_date, req.params.id] });
+        if (end_date !== undefined) await db.execute({ sql: 'UPDATE department_items SET end_date = ? WHERE id = ?', args: [end_date, req.params.id] });
         if (purpose !== undefined) await db.execute({ sql: 'UPDATE department_items SET purpose = ? WHERE id = ?', args: [purpose, req.params.id] });
         if (condition !== undefined) await db.execute({ sql: 'UPDATE department_items SET condition = ? WHERE id = ?', args: [normalizeCondition(condition), req.params.id] });
         const updated = await db.execute({ sql: 'SELECT * FROM department_items WHERE id = ?', args: [req.params.id] });
@@ -332,12 +333,13 @@ module.exports = function (db) {
     });
 
     router.put('/equipment/:id', async (req, res) => {
-        const { name, description, qty, employee_id, receipt_date, purpose, condition } = req.body;
+        const { name, description, qty, employee_id, receipt_date, end_date, purpose, condition } = req.body;
         if (name !== undefined) await db.execute({ sql: 'UPDATE department_equipment SET name = ? WHERE id = ?', args: [name.trim(), req.params.id] });
         if (description !== undefined) await db.execute({ sql: 'UPDATE department_equipment SET description = ? WHERE id = ?', args: [description, req.params.id] });
         if (qty !== undefined) await db.execute({ sql: 'UPDATE department_equipment SET qty = ? WHERE id = ?', args: [Math.max(1, parseInt(qty)), req.params.id] });
         if (employee_id !== undefined) await db.execute({ sql: 'UPDATE department_equipment SET employee_id = ? WHERE id = ?', args: [employee_id, req.params.id] });
         if (receipt_date !== undefined) await db.execute({ sql: 'UPDATE department_equipment SET receipt_date = ? WHERE id = ?', args: [receipt_date, req.params.id] });
+        if (end_date !== undefined) await db.execute({ sql: 'UPDATE department_equipment SET end_date = ? WHERE id = ?', args: [end_date, req.params.id] });
         if (purpose !== undefined) await db.execute({ sql: 'UPDATE department_equipment SET purpose = ? WHERE id = ?', args: [purpose, req.params.id] });
         if (condition !== undefined) await db.execute({ sql: 'UPDATE department_equipment SET condition = ? WHERE id = ?', args: [normalizeCondition(condition), req.params.id] });
         const updated = await db.execute({ sql: 'SELECT * FROM department_equipment WHERE id = ?', args: [req.params.id] });
