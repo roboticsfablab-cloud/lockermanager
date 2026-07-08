@@ -239,13 +239,26 @@ module.exports = function (db) {
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
-    // Edit the expected return date on the currently active custody entry —
-    // distinct from /custody/return, which closes it out. Lets the manager
-    // set/adjust the planned return date without starting a whole new transfer.
-    router.patch('/:id/custody/end-date', async (req, res) => {
+    // Edit the currently active custody entry in place — same field set as
+    // creating a transfer (qty, dates, condition, notes), but distinct from
+    // /custody/return (which closes it out) and POST /custody (which creates
+    // a brand new entry). Lets a manager correct/update an in-progress
+    // temporary custody hold without starting over.
+    router.patch('/:id/custody', async (req, res) => {
         try {
-            const { end_date } = req.body;
-            await db.execute({ sql: `UPDATE covenant_history SET end_date=? WHERE item_id=? AND entity_type='locker_item' AND status='active'`, args: [end_date || '', req.params.id] });
+            const { qty, start_date, end_date, condition, condition_notes, notes } = req.body;
+            const sets = [];
+            const args = [];
+            if (qty !== undefined) { sets.push('qty = ?'); args.push(qty === '' || qty === null ? null : (Math.max(1, parseInt(qty)) || null)); }
+            if (start_date !== undefined) { sets.push('start_date = ?'); args.push(start_date || ''); }
+            if (end_date !== undefined) { sets.push('end_date = ?'); args.push(end_date || ''); }
+            if (condition !== undefined) { sets.push('condition = ?'); args.push(condition || ''); }
+            if (condition_notes !== undefined) { sets.push('condition_notes = ?'); args.push(condition_notes || ''); }
+            if (notes !== undefined) { sets.push('notes = ?'); args.push(notes || ''); }
+            if (sets.length) {
+                args.push(req.params.id);
+                await db.execute({ sql: `UPDATE covenant_history SET ${sets.join(', ')} WHERE item_id=? AND entity_type='locker_item' AND status='active'`, args });
+            }
             res.json({ success: true });
         } catch (e) { res.status(500).json({ error: e.message }); }
     });

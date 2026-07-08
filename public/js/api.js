@@ -144,11 +144,11 @@ const API = {
     getLockerItemCustody(id)          { return this.request('GET', '/items/' + id + '/custody'); },
     addLockerItemCustody(id, data)    { return this.request('POST', '/items/' + id + '/custody', data); },
     returnLockerItemCustody(id, data) { return this.request('POST', '/items/' + id + '/custody/return', data); },
-    updateLockerItemCustodyEndDate(id, end_date) { return this.request('PATCH', '/items/' + id + '/custody/end-date', { end_date: end_date }); },
+    updateLockerItemCustody(id, data) { return this.request('PATCH', '/items/' + id + '/custody', data); },
 
     // Warehouse item custody
     getWarehouseItemCustody(id)          { return this.request('GET', '/warehouse/items/' + id + '/custody'); },
     addWarehouseItemCustody(id, data)    { return this.request('POST', '/warehouse/items/' + id + '/custody', data); },
     returnWarehouseItemCustody(id, data) { return this.request('POST', '/warehouse/items/' + id + '/custody/return', data); },
-    updateWarehouseItemCustodyEndDate(id, end_date) { return this.request('PATCH', '/warehouse/items/' + id + '/custody/end-date', { end_date: end_date }); },
+    updateWarehouseItemCustody(id, data) { return this.request('PATCH', '/warehouse/items/' + id + '/custody', data); },
 };

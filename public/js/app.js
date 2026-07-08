@@ -4186,11 +4186,12 @@ async function renderEmpItems() {
                 var safeName = escapeHtml(item.item_name || '').replace(/'/g, "\\'");
                 card.innerHTML =
                     '<div class="incoming-card-banner" style="background:linear-gradient(135deg,rgba(245,158,11,0.2),rgba(245,158,11,0.05));color:#f59e0b;border-bottom:1px solid rgba(245,158,11,0.2);padding:6px 10px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px"><i class="fas fa-inbox"></i> ' + (t('underTempCustody') || 'Temp Custody') + '</div>' +
-                    '<div class="equip-card-img">' + (item.item_image ? '<img src="' + escapeHtml(item.item_image) + '">' : '<i class="fas ' + (item.entity_type === 'locker_item' ? 'fa-box-open' : 'fa-warehouse') + '"></i>') + '</div>' +
+                    '<div class="equip-card-img">' + (item.item_image ? '<img src="' + escapeHtml(item.item_image) + '">' : '<i class="fas ' + (item.entity_type === 'locker_item' ? 'fa-box-open' : 'fa-warehouse') + '"></i>') + (item.qty != null ? '<div class="custody-v2-qty-badge">x' + Number(item.qty) + '</div>' : '') + '</div>' +
                     '<div class="equip-card-body">' +
                         '<div class="equip-card-name">' + escapeHtml(item.item_name || '') + '</div>' +
                         '<div class="equip-card-meta"><i class="fas ' + (item.entity_type === 'locker_item' ? 'fa-box-open' : 'fa-warehouse') + '"></i> ' + escapeHtml(item.locker_name || item.zone_name || '') + '</div>' +
                         '<div class="equip-card-meta"><i class="fas fa-calendar"></i> ' + escapeHtml(item.start_date || item.transfer_date || '') + (item.end_date ? ' → ' + escapeHtml(item.end_date) : '') + '</div>' +
+                        (item.notes ? '<div class="equip-card-meta"><i class="fas fa-sticky-note"></i> ' + escapeHtml(item.notes) + '</div>' : '') +
                     '</div>' +
                     '<div class="incoming-card-actions">' +
                         '<button class="equip-action equip-action-return" onclick="openItemCustodyModal(' + item.item_id + ',\'' + safeName + '\',\'' + item.entity_type + '\')"><i class="fas fa-pen"></i><span>' + (t('manageCustody') || 'Manage') + '</span></button>' +
@@ -4211,6 +4212,7 @@ function printEmpStorage() {
             { label: t('itemName'), value: function(r){ return r.item_name || ''; } },
             { label: t('category'), value: function(r){ return r.entity_type === 'equipment' || r.entity_type === 'warehouse_item' ? t('warehouse') : t('locker'); } },
             { label: t('location'), value: function(r){ return r.locker_name || r.zone_name || ''; } },
+            { label: t('qty'), value: function(r){ return r.qty != null ? r.qty : ''; } },
             { label: t('custodyPeriod'), value: function(r){ return (r.start_date || r.transfer_date || '') + (r.end_date ? ' → ' + r.end_date : ''); } },
             { label: t('conditionOnReceipt'), value: function(r){ return r.condition === 'good' ? t('conditionGood') : r.condition === 'not_good' ? t('conditionNotGood') : ''; } },
             { label: t('additionalNotes'), value: function(r){ return r.notes || ''; } }
@@ -4608,16 +4610,46 @@ async function openItemCustodyModal(itemId, itemName, entityType) {
         if (history && history.length) { for (var i = 0; i < history.length; i++) { if (history[i].status === 'active') { active = history[i]; break; } } }
         if (active && curPanel) {
             curPanel.style.display = 'block';
+            var escAttr = function(s) { return escapeHtml(s).replace(/"/g, '&quot;'); };
             var heldBy = active.to_department_id ? (active.to_department_name || '') : (active.to_employee_name || '');
             var heldIcon = active.to_department_id ? 'fa-building' : 'fa-user-clock';
-            var periodStr = (active.start_date || active.transfer_date || '') + (active.end_date ? ' → ' + active.end_date : '');
+            var condIsBad = active.condition === 'not_good';
             curPanel.innerHTML =
                 '<div class="cur-cust-header"><i class="fas ' + heldIcon + '"></i> ' + t('outOfDeptCustody') + '</div>' +
                 '<div class="cur-cust-row"><span class="cur-cust-label">' + (active.to_department_id ? t('targetDepartment') : t('currentlyWith')) + ':</span> <strong>' + escapeHtml(heldBy) + '</strong></div>' +
-                '<div class="cur-cust-row"><span class="cur-cust-label">' + t('custodyPeriod') + ':</span> ' + escapeHtml(periodStr) + '</div>' +
-                '<div class="cur-cust-row"><span class="cur-cust-label">' + t('returnDate') + ':</span> <input type="date" id="itemCustodyActiveEndDate" value="' + escapeHtml(active.end_date || '') + '" style="margin-left:6px"> <button class="btn-icon" onclick="saveItemCustodyEndDate()" title="' + t('save') + '"><i class="fas fa-check" style="color:var(--accent)"></i></button></div>' +
-                (active.notes ? '<div class="cur-cust-row"><span class="cur-cust-label">' + t('additionalNotes') + ':</span> ' + escapeHtml(active.notes) + '</div>' : '') +
-                '<div class="cur-cust-actions"><button class="btn-add btn-return-cust" onclick="returnItemCustody()"><i class="fas fa-undo"></i> ' + t('markReturned') + '</button></div>';
+                '<div class="transfer-form-grid">' +
+                    '<div class="form-field">' +
+                        '<label>' + t('qty') + '</label>' +
+                        '<input type="number" id="itemCustodyActiveQty" min="1" step="1" value="' + escAttr(active.qty != null ? active.qty : '') + '">' +
+                    '</div>' +
+                    '<div class="form-field">' +
+                        '<label>' + t('startDate') + '</label>' +
+                        '<input type="date" id="itemCustodyActiveStart" value="' + escAttr(active.start_date || active.transfer_date || '') + '">' +
+                    '</div>' +
+                    '<div class="form-field">' +
+                        '<label>' + t('returnDate') + '</label>' +
+                        '<input type="date" id="itemCustodyActiveEndDate" value="' + escAttr(active.end_date || '') + '">' +
+                    '</div>' +
+                    '<div class="form-field full">' +
+                        '<label>' + t('deviceCondition') + '</label>' +
+                        '<div class="condition-radio-group">' +
+                            '<label class="condition-radio"><input type="radio" name="itemCustodyActiveCond" value="good"' + (condIsBad ? '' : ' checked') + ' onchange="document.getElementById(\'itemCustodyActiveCondNotesWrap\').style.display=\'none\'"> <span>' + t('conditionGood') + '</span></label>' +
+                            '<label class="condition-radio condition-radio-bad"><input type="radio" name="itemCustodyActiveCond" value="not_good"' + (condIsBad ? ' checked' : '') + ' onchange="document.getElementById(\'itemCustodyActiveCondNotesWrap\').style.display=\'block\'"> <span>' + t('conditionNotGood') + '</span></label>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="form-field full" id="itemCustodyActiveCondNotesWrap" style="display:' + (condIsBad ? 'block' : 'none') + '">' +
+                        '<label>' + t('conditionNotes') + '</label>' +
+                        '<input type="text" id="itemCustodyActiveCondNotes" value="' + escAttr(active.condition_notes || '') + '">' +
+                    '</div>' +
+                    '<div class="form-field full">' +
+                        '<label>' + t('additionalNotes') + '</label>' +
+                        '<input type="text" id="itemCustodyActiveNotes" value="' + escAttr(active.notes || '') + '">' +
+                    '</div>' +
+                '</div>' +
+                '<div class="cur-cust-actions">' +
+                    '<button class="btn-add" onclick="saveItemCustodyEdit()"><i class="fas fa-check"></i> ' + t('save') + '</button>' +
+                    '<button class="btn-add btn-return-cust" onclick="returnItemCustody()"><i class="fas fa-undo"></i> ' + t('markReturned') + '</button>' +
+                '</div>';
         }
         if (!history || !history.length) {
             timeline.innerHTML = '<div class="empty-state" style="padding:14px"><p>' + t('noItems') + '</p></div>';
@@ -4715,16 +4747,28 @@ async function returnItemCustody() {
     } catch(e) { showToast(e.message, 'error'); }
 }
 
-// Update the planned return date on the currently active custody entry in
-// place — a lighter edit than returnItemCustody() (which closes the entry
-// out) or submitItemCustodyTransfer() (which creates a whole new transfer).
-async function saveItemCustodyEndDate() {
+// Edit the currently active custody entry in place (qty, dates, condition,
+// notes — same field set as creating a transfer) — a lighter edit than
+// returnItemCustody() (which closes the entry out) or
+// submitItemCustodyTransfer() (which creates a whole new transfer).
+async function saveItemCustodyEdit() {
     if (!_itemCustody.id) return;
-    var input = document.getElementById('itemCustodyActiveEndDate');
-    var endDate = input ? input.value : '';
+    var condEl = document.querySelector('input[name="itemCustodyActiveCond"]:checked');
+    var condition = condEl ? condEl.value : 'good';
+    var condNotesEl = document.getElementById('itemCustodyActiveCondNotes');
+    var condNotes = condNotesEl ? condNotesEl.value.trim() : '';
+    if (condition === 'not_good' && !condNotes) { showToast(t('conditionNotes'), 'error'); return; }
+    var data = {
+        qty: document.getElementById('itemCustodyActiveQty').value,
+        start_date: document.getElementById('itemCustodyActiveStart').value || '',
+        end_date: document.getElementById('itemCustodyActiveEndDate').value || '',
+        condition: condition,
+        condition_notes: condNotes,
+        notes: document.getElementById('itemCustodyActiveNotes').value.trim()
+    };
     try {
-        if (_itemCustody.type === 'warehouse_item') await API.updateWarehouseItemCustodyEndDate(_itemCustody.id, endDate);
-        else await API.updateLockerItemCustodyEndDate(_itemCustody.id, endDate);
+        if (_itemCustody.type === 'warehouse_item') await API.updateWarehouseItemCustody(_itemCustody.id, data);
+        else await API.updateLockerItemCustody(_itemCustody.id, data);
         var iName = document.getElementById('itemCustodyItemName').textContent.replace(' — ', '');
         await openItemCustodyModal(_itemCustody.id, iName, _itemCustody.type);
         await _refreshAfterCustodyMove();
@@ -5141,7 +5185,7 @@ function printEmpSignatureSheet() {
         return { name: r.name, description: r.description, qty: r.qty, receipt_date: r.receipt_date || r.start_date || '', end_date: r.end_date || '' };
     });
     var storageItems = (emp.incoming_storage_items || []).map(function(r) {
-        return { name: r.item_name, description: r.description, qty: null, receipt_date: r.start_date || r.transfer_date || '', end_date: r.end_date || '' };
+        return { name: r.item_name, description: r.description, qty: r.qty != null ? r.qty : null, receipt_date: r.start_date || r.transfer_date || '', end_date: r.end_date || '' };
     });
     var items = deptItems.concat(storageItems);
     if (!items.length) { showToast(t('noData'), 'warning'); return; }

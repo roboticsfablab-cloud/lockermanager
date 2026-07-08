@@ -7,7 +7,7 @@ const client = createClient({
 
 let initialized = false;
 
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 async function ensureTables() {
     if (initialized) return;
@@ -197,6 +197,10 @@ async function ensureTables() {
         // Schema v7: expected return date, editable from the employee's Custody Items tab.
         `ALTER TABLE department_items ADD COLUMN end_date TEXT DEFAULT ''`,
         `ALTER TABLE department_equipment ADD COLUMN end_date TEXT DEFAULT ''`,
+        // Schema v8: qty on temporary (tag-only locker/warehouse) custody entries, so
+        // they can carry the same full field set as a real transfer — informational
+        // only, doesn't move stock (unlike department_items.qty).
+        `ALTER TABLE covenant_history ADD COLUMN qty INTEGER DEFAULT NULL`,
     ];
     for (const sql of migrations) {
         try { await client.execute(sql); } catch (e) { /* column exists */ }
