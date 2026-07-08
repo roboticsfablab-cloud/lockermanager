@@ -196,8 +196,7 @@ module.exports = function (db) {
         const { name, description, qty, department_id, receipt_date, purpose } = req.body;
         if (!name || !name.trim()) return res.status(400).json({ error: 'Item name required' });
         const emp = await db.execute({ sql: 'SELECT department_id FROM employees WHERE id = ?', args: [req.params.id] });
-        const deptId = department_id || (emp.rows[0] ? emp.rows[0].department_id : null);
-        if (!deptId) return res.status(400).json({ error: 'Employee must belong to a department' });
+        const deptId = department_id || (emp.rows[0] ? emp.rows[0].department_id : null) || null;
         const result = await db.execute({
             sql: 'INSERT INTO department_items (department_id, employee_id, name, description, qty, receipt_date, purpose) VALUES (?, ?, ?, ?, ?, ?, ?)',
             args: [deptId, req.params.id, name.trim(), description || '', Math.max(1, parseInt(qty) || 1), receipt_date || '', purpose || '']
