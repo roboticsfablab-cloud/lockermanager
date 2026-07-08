@@ -181,8 +181,7 @@ module.exports = function (db) {
             if (to_employee_id) {
                 const emp = await db.execute({ sql: 'SELECT id, department_id FROM employees WHERE id = ?', args: [to_employee_id] });
                 if (emp.rows.length === 0) return res.status(404).json({ error: 'Employee not found' });
-                if (!emp.rows[0].department_id) return res.status(400).json({ error: 'Employee must belong to a department' });
-                destDeptId = emp.rows[0].department_id;
+                destDeptId = emp.rows[0].department_id || null;
                 destEmployeeId = to_employee_id;
             } else {
                 const dep = await db.execute({ sql: 'SELECT id FROM departments WHERE id = ?', args: [to_department_id] });

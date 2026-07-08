@@ -7,7 +7,7 @@ const client = createClient({
 
 let initialized = false;
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 async function ensureTables() {
     if (initialized) return;
@@ -233,6 +233,41 @@ async function ensureTables() {
             ], 'write');
         }
     } catch (e) { /* ignore */ }
+
+    // Migration: relax NOT NULL on department_items/department_equipment.department_id
+    // — custody can now land on an employee with no department, so the item's
+    // department becomes optional rather than always inherited from the employee.
+    for (const table of ['department_items', 'department_equipment']) {
+        try {
+            const info = await client.execute(`PRAGMA table_info(${table})`);
+            const deptRow = info.rows.find(r => r.name === 'department_id');
+            if (deptRow && Number(deptRow.notnull) === 1) {
+                await client.batch([
+                    `CREATE TABLE ${table}__new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        department_id INTEGER DEFAULT NULL,
+                        employee_id INTEGER DEFAULT NULL,
+                        name TEXT NOT NULL,
+                        description TEXT DEFAULT '',
+                        qty INTEGER NOT NULL DEFAULT 1,
+                        image TEXT DEFAULT '',
+                        receipt_date TEXT DEFAULT '',
+                        purpose TEXT DEFAULT '',
+                        condition TEXT NOT NULL DEFAULT 'new',
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE,
+                        FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL
+                    )`,
+                    `INSERT INTO ${table}__new
+                        (id, department_id, employee_id, name, description, qty, image, receipt_date, purpose, condition, created_at)
+                     SELECT id, department_id, employee_id, name, COALESCE(description,''), qty, COALESCE(image,''), COALESCE(receipt_date,''), COALESCE(purpose,''), COALESCE(condition,'new'), created_at
+                     FROM ${table}`,
+                    `DROP TABLE ${table}`,
+                    `ALTER TABLE ${table}__new RENAME TO ${table}`
+                ], 'write');
+            }
+        } catch (e) { /* ignore */ }
+    }
 
     const result = await client.execute('SELECT COUNT(*) as c FROM lockers');
     if (Number(result.rows[0].c) === 0) {
