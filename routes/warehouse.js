@@ -443,5 +443,16 @@ module.exports = function (db) {
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
+    // Edit the expected return date on the currently active custody entry —
+    // distinct from /custody/return, which closes it out. Lets the manager
+    // set/adjust the planned return date without starting a whole new transfer.
+    router.patch('/items/:id/custody/end-date', async (req, res) => {
+        try {
+            const { end_date } = req.body;
+            await db.execute({ sql: `UPDATE covenant_history SET end_date=? WHERE item_id=? AND entity_type='warehouse_item' AND status='active'`, args: [end_date || '', req.params.id] });
+            res.json({ success: true });
+        } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+
     return router;
 };

@@ -39,7 +39,7 @@ const i18n = {
         jobTitle:'Job Title', department:'Department', generalItems:'General Items',
         assignedTo:'Assigned To', active:'Active', paused:'Paused', ended:'Ended',
         returned:'Returned', transferred:'Transferred',
-        startDate:'Start Date', endDate:'End Date', notes:'Notes',
+        startDate:'Start Date', endDate:'End Date', returnDate:'Return Date', notes:'Notes',
         itemsRunningLow:'{count} item(s) in {lockers} locker(s) running low!',
         addNewLocker:'Add New Locker', lockerNameUpdated:'Cabinet updated',
         qty:'Qty', descriptionPlaceholder:'Description (optional)',
@@ -217,7 +217,7 @@ const i18n = {
         jobTitle:'المسمى الوظيفي', department:'القسم', generalItems:'عناصر عامة',
         assignedTo:'مسند إلى', active:'نشط', paused:'متوقف', ended:'منتهي',
         returned:'مُرجع', transferred:'منقول',
-        startDate:'تاريخ البداية', endDate:'تاريخ النهاية', notes:'ملاحظات',
+        startDate:'تاريخ البداية', endDate:'تاريخ النهاية', returnDate:'تاريخ الارجاع', notes:'ملاحظات',
         itemsRunningLow:'{count} عنصر في {lockers} خزانة بمخزون منخفض!',
         addNewLocker:'إضافة خزانة جديدة', lockerNameUpdated:'تم تحديث الخزانة',
         qty:'الكمية', descriptionPlaceholder:'الوصف (اختياري)',
@@ -4613,6 +4613,7 @@ async function openItemCustodyModal(itemId, itemName, entityType) {
                 '<div class="cur-cust-header"><i class="fas ' + heldIcon + '"></i> ' + t('outOfDeptCustody') + '</div>' +
                 '<div class="cur-cust-row"><span class="cur-cust-label">' + (active.to_department_id ? t('targetDepartment') : t('currentlyWith')) + ':</span> <strong>' + escapeHtml(heldBy) + '</strong></div>' +
                 '<div class="cur-cust-row"><span class="cur-cust-label">' + t('custodyPeriod') + ':</span> ' + escapeHtml(periodStr) + '</div>' +
+                '<div class="cur-cust-row"><span class="cur-cust-label">' + t('returnDate') + ':</span> <input type="date" id="itemCustodyActiveEndDate" value="' + escapeHtml(active.end_date || '') + '" style="margin-left:6px"> <button class="btn-icon" onclick="saveItemCustodyEndDate()" title="' + t('save') + '"><i class="fas fa-check" style="color:var(--accent)"></i></button></div>' +
                 (active.notes ? '<div class="cur-cust-row"><span class="cur-cust-label">' + t('additionalNotes') + ':</span> ' + escapeHtml(active.notes) + '</div>' : '') +
                 '<div class="cur-cust-actions"><button class="btn-add btn-return-cust" onclick="returnItemCustody()"><i class="fas fa-undo"></i> ' + t('markReturned') + '</button></div>';
         }
@@ -4709,6 +4710,23 @@ async function returnItemCustody() {
         await openItemCustodyModal(_itemCustody.id, iName, _itemCustody.type);
         await _refreshAfterCustodyMove();
         showToast(t('returnedSuccessfully') || 'Returned successfully');
+    } catch(e) { showToast(e.message, 'error'); }
+}
+
+// Update the planned return date on the currently active custody entry in
+// place — a lighter edit than returnItemCustody() (which closes the entry
+// out) or submitItemCustodyTransfer() (which creates a whole new transfer).
+async function saveItemCustodyEndDate() {
+    if (!_itemCustody.id) return;
+    var input = document.getElementById('itemCustodyActiveEndDate');
+    var endDate = input ? input.value : '';
+    try {
+        if (_itemCustody.type === 'warehouse_item') await API.updateWarehouseItemCustodyEndDate(_itemCustody.id, endDate);
+        else await API.updateLockerItemCustodyEndDate(_itemCustody.id, endDate);
+        var iName = document.getElementById('itemCustodyItemName').textContent.replace(' — ', '');
+        await openItemCustodyModal(_itemCustody.id, iName, _itemCustody.type);
+        await _refreshAfterCustodyMove();
+        showToast(t('itemUpdated'));
     } catch(e) { showToast(e.message, 'error'); }
 }
 
@@ -5210,7 +5228,7 @@ function printEmpSignatureSheet() {
 '  <div class="sheet-emp-item"><b>' + esc(t('qty')) + ':</b> ' + totalQty + '</div>' +
 '</div>' +
 '<table><thead><tr>' +
-'  <th>#</th><th>' + esc(t('itemName')) + '</th><th>' + esc(t('description')) + '</th><th>' + esc(t('qty')) + '</th><th>' + esc(t('receiptDate')) + '</th><th>' + esc(t('endDate')) + '</th><th>' + esc(t('custodyDuration')) + '</th>' +
+'  <th>#</th><th>' + esc(t('itemName')) + '</th><th>' + esc(t('description')) + '</th><th>' + esc(t('qty')) + '</th><th>' + esc(t('receiptDate')) + '</th><th>' + esc(t('returnDate')) + '</th><th>' + esc(t('custodyDuration')) + '</th>' +
 '</tr></thead><tbody>' + rowsHtml + '</tbody></table>' +
 '<div class="sheet-declaration">' + esc(t('custodyDeclarationText')) + '</div>' +
 '<div class="sheet-signatures">' +
