@@ -94,6 +94,7 @@ const i18n = {
         underTempCustody:'Under Temporary Custody',
         tempCustodyTab:'Temporary Custody', noTempCustody:'No items currently under temporary custody.',
         manageCustody:'Manage', printTempCustodyTitle:'Print temporary custody',
+        moveToTempCustody:'Move to Temporary Custody', returnToDestination:'Return To...',
         print:'Print', printIncoming:'Print Incoming', printCurrent:'Print Current',
         printHistory:'Print History',
         report:'Report', generatedOn:'Generated on', page:'Page', of:'of',
@@ -272,6 +273,7 @@ const i18n = {
         underTempCustody:'تحت عهدة مؤقتة',
         tempCustodyTab:'العهدة المؤقتة', noTempCustody:'لا توجد عناصر تحت عهدة مؤقتة حالياً.',
         manageCustody:'إدارة', printTempCustodyTitle:'طباعة العهدة المؤقتة',
+        moveToTempCustody:'نقل إلى العهدة المؤقتة', returnToDestination:'إرجاع إلى...',
         print:'طباعة', printIncoming:'طباعة الواردة', printCurrent:'طباعة الحالية',
         printHistory:'طباعة السجل',
         report:'تقرير', generatedOn:'تم التوليد في', page:'صفحة', of:'من',
@@ -3424,6 +3426,8 @@ async function openEditDeptItem(kind, id) {
     document.getElementById('editDeptItemName').value = rec.name || '';
     document.getElementById('editDeptItemDesc').value = rec.description || '';
     document.getElementById('editDeptItemQty').value = rec.qty || 1;
+    document.getElementById('editDeptItemReceiptDate').value = rec.receipt_date || '';
+    document.getElementById('editDeptItemEndDate').value = rec.end_date || '';
     document.getElementById('editDeptItemCondition').value = normalizeCondition(rec.condition);
     var titleEl = document.getElementById('editDeptItemTitle');
     if (titleEl) titleEl.textContent = kind === 'equipment' ? t('editEquipmentTitle') : t('editItemTitle');
@@ -3439,6 +3443,8 @@ async function saveEditDeptItem() {
         name: document.getElementById('editDeptItemName').value.trim(),
         description: document.getElementById('editDeptItemDesc').value.trim(),
         qty: Math.max(1, parseInt(document.getElementById('editDeptItemQty').value) || 1),
+        receipt_date: document.getElementById('editDeptItemReceiptDate').value || '',
+        end_date: document.getElementById('editDeptItemEndDate').value || '',
         condition: document.getElementById('editDeptItemCondition').value
     };
     if (!payload.name) { showToast(t('itemName'), 'error'); return; }
@@ -4148,6 +4154,7 @@ async function renderEmpItems() {
                     '<div class="custody-v2-tools">' +
                         '<label class="custody-v2-tool-btn" title="Upload"><i class="fas fa-camera"></i><input type="file" accept="image/*" style="display:none" onchange="uploadEmpItemImg(' + item.id + ',\'' + (item.entity_type || 'item') + '\',this.files[0])"></label>' +
                         '<button class="custody-v2-tool-btn" title="' + (t('editCustodyItem') || 'Edit') + '" onclick="openEmpItemEditModal(' + item.id + ',\'' + (item.entity_type || 'item') + '\')"><i class="fas fa-pen"></i></button>' +
+                        '<button class="custody-v2-tool-btn" title="' + (t('moveToTempCustody') || 'Move to Temporary Custody') + '" onclick="openMoveToTempCustodyModal(' + item.id + ',\'' + (item.entity_type || 'item') + '\',\'' + escapeHtml(item.name || '').replace(/'/g, "\\'") + '\',' + Number(item.qty || 1) + ')"><i class="fas fa-exchange-alt"></i></button>' +
                         '<button class="custody-v2-tool-btn custody-v2-tool-del" onclick="deleteEmpItem(' + item.id + ',\'' + (item.entity_type || 'item') + '\')"><i class="fas fa-trash-alt"></i></button>' +
                     '</div>' +
                 '</div>' +
@@ -4258,6 +4265,89 @@ async function saveEmpItemEdit() {
         currentEmpData = await API.getEmployee(currentEmpId);
         await renderEmpItems();
         showToast(t('itemUpdated'));
+    } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ---- Move a Custody Item (real department holding) into Temporary Custody
+// (a tagged locker/warehouse item) — the reverse of the normal custody
+// transfer. Needs a real destination locker or warehouse zone/area, since
+// Temporary Custody entries always point at an actual items/warehouse_items row.
+var _moveTempCustody = { id: null, kind: 'item', dest: 'locker' };
+
+function setMoveTempCustodyDest(dest) {
+    _moveTempCustody.dest = dest;
+    document.querySelectorAll('#moveToTempCustodyModal .transfer-mode-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.mode === dest);
+    });
+    var lockerF = document.getElementById('moveTempCustodyLockerField');
+    var zoneF = document.getElementById('moveTempCustodyZoneField');
+    var areaF = document.getElementById('moveTempCustodyAreaField');
+    if (lockerF) lockerF.style.display = dest === 'locker' ? '' : 'none';
+    if (zoneF) zoneF.style.display = dest === 'warehouse' ? '' : 'none';
+    if (areaF) areaF.style.display = dest === 'warehouse' ? '' : 'none';
+}
+
+async function onMoveTempCustodyZoneChange() {
+    var zoneSel = document.getElementById('moveTempCustodyZoneSel');
+    var areaSel = document.getElementById('moveTempCustodyAreaSel');
+    var zid = parseInt(zoneSel.value);
+    areaSel.innerHTML = '<option value="">' + t('noArea') + '</option>';
+    if (!zid) return;
+    try {
+        var areas = await API.getAreas(zid);
+        areas.forEach(function(a) { areaSel.innerHTML += '<option value="' + a.id + '">' + escapeHtml(a.name) + '</option>'; });
+    } catch (e) { /* ignore */ }
+}
+
+async function openMoveToTempCustodyModal(id, kind, name, qty) {
+    _moveTempCustody.id = id;
+    _moveTempCustody.kind = kind === 'equipment' ? 'equipment' : 'item';
+    document.getElementById('moveTempCustodyItemName').textContent = ' — ' + (name || '');
+    var qtyInput = document.getElementById('moveTempCustodyQty');
+    var maxQty = Math.max(1, Number(qty) || 1);
+    qtyInput.max = maxQty;
+    qtyInput.value = maxQty;
+    var qtyHint = document.getElementById('moveTempCustodyQtyHint');
+    if (qtyHint) qtyHint.textContent = '(' + (t('stock') || 'available') + ': ' + maxQty + ')';
+    setMoveTempCustodyDest('locker');
+    var lockerSel = document.getElementById('moveTempCustodyLockerSel');
+    var zoneSel = document.getElementById('moveTempCustodyZoneSel');
+    lockerSel.innerHTML = '<option value="">' + t('selectTargetLocker') + '</option>';
+    zoneSel.innerHTML = '<option value="">' + t('selectTargetZone') + '</option>';
+    document.getElementById('moveTempCustodyAreaSel').innerHTML = '<option value="">' + t('noArea') + '</option>';
+    document.getElementById('moveToTempCustodyModal').classList.add('active');
+    try {
+        var res = await Promise.all([API.getLockers(), API.getZones()]);
+        res[0].forEach(function(l) { lockerSel.innerHTML += '<option value="' + l.id + '">' + escapeHtml(l.name || (t('locker') + ' ' + l.id)) + '</option>'; });
+        res[1].forEach(function(z) { zoneSel.innerHTML += '<option value="' + z.id + '">' + escapeHtml(z.name) + '</option>'; });
+    } catch (e) { /* ignore */ }
+}
+
+async function confirmMoveToTempCustody() {
+    if (!_moveTempCustody.id) return;
+    var qtyInput = document.getElementById('moveTempCustodyQty');
+    var maxQty = parseInt(qtyInput.max) || 1;
+    var reqQty = parseInt(qtyInput.value);
+    if (isNaN(reqQty) || reqQty < 1) { showToast(t('qty'), 'error'); return; }
+    var payload = { qty: Math.min(maxQty, reqQty), destination_type: _moveTempCustody.dest };
+    if (_moveTempCustody.dest === 'locker') {
+        var lockerId = document.getElementById('moveTempCustodyLockerSel').value;
+        if (!lockerId) { showToast(t('selectTargetLocker'), 'error'); return; }
+        payload.locker_id = parseInt(lockerId);
+    } else {
+        var zoneId = document.getElementById('moveTempCustodyZoneSel').value;
+        if (!zoneId) { showToast(t('selectTargetZone'), 'error'); return; }
+        payload.zone_id = parseInt(zoneId);
+        var areaId = document.getElementById('moveTempCustodyAreaSel').value;
+        if (areaId) payload.area_id = parseInt(areaId);
+    }
+    try {
+        if (_moveTempCustody.kind === 'equipment') await API.moveDeptEquipmentToTempCustody(_moveTempCustody.id, payload);
+        else await API.moveDeptItemToTempCustody(_moveTempCustody.id, payload);
+        closeModal('moveToTempCustodyModal');
+        currentEmpData = await API.getEmployee(currentEmpId);
+        await renderEmpItems();
+        showToast(t('custodyTransferred') || 'Moved to Temporary Custody');
     } catch (e) { showToast(e.message, 'error'); }
 }
 
@@ -4649,6 +4739,37 @@ async function openItemCustodyModal(itemId, itemName, entityType) {
                 '<div class="cur-cust-actions">' +
                     '<button class="btn-add" onclick="saveItemCustodyEdit()"><i class="fas fa-check"></i> ' + t('save') + '</button>' +
                     '<button class="btn-add btn-return-cust" onclick="returnItemCustody()"><i class="fas fa-undo"></i> ' + t('markReturned') + '</button>' +
+                    '<button class="btn-add" onclick="toggleReturnToForm()"><i class="fas fa-map-marker-alt"></i> ' + t('returnToDestination') + '</button>' +
+                '</div>' +
+                '<div id="itemCustodyReturnToForm" style="display:none;margin-top:12px;padding-top:12px;border-top:1px dashed var(--border)">' +
+                    '<div class="transfer-mode-toggle">' +
+                        '<button type="button" class="transfer-mode-btn active" data-mode="department" onclick="setReturnToDest(\'department\')"><i class="fas fa-building"></i> <span>' + t('department') + '</span></button>' +
+                        '<button type="button" class="transfer-mode-btn" data-mode="locker" onclick="setReturnToDest(\'locker\')"><i class="fas fa-box-open"></i> <span>' + t('locker') + '</span></button>' +
+                        '<button type="button" class="transfer-mode-btn" data-mode="warehouse" onclick="setReturnToDest(\'warehouse\')"><i class="fas fa-warehouse"></i> <span>' + t('warehouse') + '</span></button>' +
+                    '</div>' +
+                    '<div class="transfer-form-grid">' +
+                        '<div class="form-field" id="returnToDeptField">' +
+                            '<label>' + t('targetDepartment') + '</label>' +
+                            '<select id="returnToDeptSel"></select>' +
+                        '</div>' +
+                        '<div class="form-field" id="returnToLockerField" style="display:none">' +
+                            '<label>' + t('targetLocker') + '</label>' +
+                            '<select id="returnToLockerSel"></select>' +
+                        '</div>' +
+                        '<div class="form-field" id="returnToZoneField" style="display:none">' +
+                            '<label>' + t('targetZone') + '</label>' +
+                            '<select id="returnToZoneSel" onchange="onReturnToZoneChange()"></select>' +
+                        '</div>' +
+                        '<div class="form-field" id="returnToAreaField" style="display:none">' +
+                            '<label>' + t('targetArea') + '</label>' +
+                            '<select id="returnToAreaSel"></select>' +
+                        '</div>' +
+                        '<div class="form-field">' +
+                            '<label>' + t('qty') + '</label>' +
+                            '<input type="number" id="returnToQty" min="1" step="1" value="' + escAttr(active.qty != null ? active.qty : '') + '">' +
+                        '</div>' +
+                    '</div>' +
+                    '<button class="btn-add transfer-submit-btn" onclick="confirmReturnTo()"><i class="fas fa-undo"></i> ' + t('markReturned') + '</button>' +
                 '</div>';
         }
         if (!history || !history.length) {
@@ -4774,6 +4895,97 @@ async function saveItemCustodyEdit() {
         await _refreshAfterCustodyMove();
         showToast(t('itemUpdated'));
     } catch(e) { showToast(e.message, 'error'); }
+}
+
+// ---- "Return To..." — a real move to any department, locker, or warehouse
+// zone/area, as opposed to returnItemCustody() (which just closes the entry
+// out where the stock already sits). Department destination reuses the
+// normal custody-transfer endpoint (already closes the active entry and
+// moves stock there); locker/warehouse destinations use the dedicated
+// return-to endpoints.
+var _returnTo = { dest: 'department' };
+
+function toggleReturnToForm() {
+    var form = document.getElementById('itemCustodyReturnToForm');
+    if (!form) return;
+    var showing = form.style.display !== 'none';
+    form.style.display = showing ? 'none' : 'block';
+    if (!showing) initReturnToForm();
+}
+
+function setReturnToDest(dest) {
+    _returnTo.dest = dest;
+    document.querySelectorAll('#itemCustodyReturnToForm .transfer-mode-btn').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.mode === dest);
+    });
+    var deptF = document.getElementById('returnToDeptField');
+    var lockerF = document.getElementById('returnToLockerField');
+    var zoneF = document.getElementById('returnToZoneField');
+    var areaF = document.getElementById('returnToAreaField');
+    if (deptF) deptF.style.display = dest === 'department' ? '' : 'none';
+    if (lockerF) lockerF.style.display = dest === 'locker' ? '' : 'none';
+    if (zoneF) zoneF.style.display = dest === 'warehouse' ? '' : 'none';
+    if (areaF) areaF.style.display = dest === 'warehouse' ? '' : 'none';
+}
+
+async function initReturnToForm() {
+    setReturnToDest('department');
+    var deptSel = document.getElementById('returnToDeptSel');
+    var lockerSel = document.getElementById('returnToLockerSel');
+    var zoneSel = document.getElementById('returnToZoneSel');
+    deptSel.innerHTML = '<option value="">' + t('selectDepartment') + '</option>';
+    lockerSel.innerHTML = '<option value="">' + t('selectTargetLocker') + '</option>';
+    zoneSel.innerHTML = '<option value="">' + t('selectTargetZone') + '</option>';
+    document.getElementById('returnToAreaSel').innerHTML = '<option value="">' + t('noArea') + '</option>';
+    try {
+        var res = await Promise.all([API.getDepartments(), API.getLockers(), API.getZones()]);
+        res[0].forEach(function(d) { deptSel.innerHTML += '<option value="' + d.id + '">' + escapeHtml(d.name) + '</option>'; });
+        res[1].forEach(function(l) { lockerSel.innerHTML += '<option value="' + l.id + '">' + escapeHtml(l.name || (t('locker') + ' ' + l.id)) + '</option>'; });
+        res[2].forEach(function(z) { zoneSel.innerHTML += '<option value="' + z.id + '">' + escapeHtml(z.name) + '</option>'; });
+    } catch (e) { /* ignore */ }
+}
+
+async function onReturnToZoneChange() {
+    var zoneSel = document.getElementById('returnToZoneSel');
+    var areaSel = document.getElementById('returnToAreaSel');
+    var zid = parseInt(zoneSel.value);
+    areaSel.innerHTML = '<option value="">' + t('noArea') + '</option>';
+    if (!zid) return;
+    try {
+        var areas = await API.getAreas(zid);
+        areas.forEach(function(a) { areaSel.innerHTML += '<option value="' + a.id + '">' + escapeHtml(a.name) + '</option>'; });
+    } catch (e) { /* ignore */ }
+}
+
+async function confirmReturnTo() {
+    if (!_itemCustody.id) return;
+    var qtyVal = parseInt(document.getElementById('returnToQty').value);
+    var qty = isNaN(qtyVal) || qtyVal < 1 ? undefined : qtyVal;
+    try {
+        if (_returnTo.dest === 'department') {
+            var deptId = document.getElementById('returnToDeptSel').value;
+            if (!deptId) { showToast(t('selectDepartment'), 'error'); return; }
+            var deptPayload = { to_department_id: parseInt(deptId), qty: qty };
+            if (_itemCustody.type === 'warehouse_item') await API.addWarehouseItemCustody(_itemCustody.id, deptPayload);
+            else await API.addLockerItemCustody(_itemCustody.id, deptPayload);
+        } else if (_returnTo.dest === 'locker') {
+            var lockerId = document.getElementById('returnToLockerSel').value;
+            if (!lockerId) { showToast(t('selectTargetLocker'), 'error'); return; }
+            var lockerPayload = { destination_type: 'locker', locker_id: parseInt(lockerId), qty: qty };
+            if (_itemCustody.type === 'warehouse_item') await API.returnWarehouseItemCustodyTo(_itemCustody.id, lockerPayload);
+            else await API.returnLockerItemCustodyTo(_itemCustody.id, lockerPayload);
+        } else {
+            var zoneId = document.getElementById('returnToZoneSel').value;
+            if (!zoneId) { showToast(t('selectTargetZone'), 'error'); return; }
+            var areaVal = document.getElementById('returnToAreaSel').value;
+            var whPayload = { destination_type: 'warehouse', zone_id: parseInt(zoneId), area_id: areaVal ? parseInt(areaVal) : null, qty: qty };
+            if (_itemCustody.type === 'warehouse_item') await API.returnWarehouseItemCustodyTo(_itemCustody.id, whPayload);
+            else await API.returnLockerItemCustodyTo(_itemCustody.id, whPayload);
+        }
+        closeModal('itemCustodyModal');
+        await _refreshAfterCustodyMove();
+        showToast(t('returnedSuccessfully') || 'Returned successfully');
+    } catch (e) { showToast(e.message, 'error'); }
 }
 
 function printItemCustodyHistory() {

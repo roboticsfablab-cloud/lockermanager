@@ -1336,6 +1336,14 @@
                 <input type="number" min="1" id="editDeptItemQty">
             </div>
             <div class="form-group">
+                <label data-i18n="receiptDate">Receipt Date</label>
+                <input type="date" id="editDeptItemReceiptDate">
+            </div>
+            <div class="form-group">
+                <label data-i18n="returnDate">Return Date</label>
+                <input type="date" id="editDeptItemEndDate">
+            </div>
+            <div class="form-group">
                 <label data-i18n="condition">Condition</label>
                 <select id="editDeptItemCondition">
                     <option value="new" data-i18n="conditionNew">New</option>
@@ -1806,6 +1814,47 @@
     </div>
 </div>
 
+<!-- Move Custody Item to Temporary Custody -->
+<div class="modal-overlay" id="moveToTempCustodyModal">
+    <div class="modal-content modal-md">
+        <div class="modal-header">
+            <h2>
+                <i class="fas fa-exchange-alt" style="margin-right:8px;color:var(--accent)"></i>
+                <span data-i18n="moveToTempCustody">Move to Temporary Custody</span>
+                <span class="covenant-item-name" id="moveTempCustodyItemName"></span>
+            </h2>
+            <button class="modal-close" onclick="closeModal('moveToTempCustodyModal')"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="transfer-mode-toggle">
+                <button type="button" class="transfer-mode-btn active" data-mode="locker" onclick="setMoveTempCustodyDest('locker')"><i class="fas fa-box-open"></i> <span data-i18n="locker">Locker</span></button>
+                <button type="button" class="transfer-mode-btn" data-mode="warehouse" onclick="setMoveTempCustodyDest('warehouse')"><i class="fas fa-warehouse"></i> <span data-i18n="warehouse">Warehouse</span></button>
+            </div>
+            <div class="transfer-form-grid">
+                <div class="form-field" id="moveTempCustodyLockerField">
+                    <label data-i18n="targetLocker">Target Cabinet</label>
+                    <select id="moveTempCustodyLockerSel"></select>
+                </div>
+                <div class="form-field" id="moveTempCustodyZoneField" style="display:none">
+                    <label data-i18n="targetZone">Target Zone</label>
+                    <select id="moveTempCustodyZoneSel" onchange="onMoveTempCustodyZoneChange()"></select>
+                </div>
+                <div class="form-field" id="moveTempCustodyAreaField" style="display:none">
+                    <label data-i18n="targetArea">Target Area</label>
+                    <select id="moveTempCustodyAreaSel"></select>
+                </div>
+                <div class="form-field">
+                    <label data-i18n="qty">Qty</label> <span class="custody-qty-hint" id="moveTempCustodyQtyHint"></span>
+                    <input type="number" id="moveTempCustodyQty" min="1" step="1">
+                </div>
+            </div>
+            <button class="btn-add transfer-submit-btn" onclick="confirmMoveToTempCustody()">
+                <i class="fas fa-check"></i> <span data-i18n="moveToTempCustody">Move to Temporary Custody</span>
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- All Department Equipment Panel -->
 <div class="modal-overlay" id="allDeptEquipPanel">
     <div class="modal-content modal-lg">
@@ -1987,8 +2036,8 @@
 </div>
 
 <!-- Scripts -->
-<script src="/js/api.js?v=32"></script>
-<script src="/js/app.js?v=32"></script>
+<script src="/js/api.js?v=33"></script>
+<script src="/js/app.js?v=33"></script>
 
 </body>
 </html>
