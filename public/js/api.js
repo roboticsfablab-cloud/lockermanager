@@ -103,7 +103,7 @@ const API = {
     updateDeptItem(id, data)      { return this.request('PUT', '/departments/items/' + id, data); },
     deleteDeptItem(id)            { return this.request('DELETE', '/departments/items/' + id); },
     uploadDeptItemImage(id, file) { return this.upload('/departments/items/' + id + '/image', file); },
-    moveDeptItemToTempCustody(id, data) { return this.request('POST', '/departments/items/' + id + '/temp-custody', data); },
+    moveDeptItem(id, data) { return this.request('POST', '/departments/items/' + id + '/move-custody', data); },
 
     // Covenant History
     getCovenantHistory(itemId)          { return this.request('GET', '/departments/items/' + itemId + '/covenant'); },
@@ -121,7 +121,7 @@ const API = {
     getEquipmentCovenant(id)            { return this.request('GET', '/departments/equipment/' + id + '/covenant'); },
     addEquipmentCovenant(id, data)      { return this.request('POST', '/departments/equipment/' + id + '/covenant', data); },
     returnEquipmentCustody(id, data)    { return this.request('POST', '/departments/equipment/' + id + '/return-custody', data || {}); },
-    moveDeptEquipmentToTempCustody(id, data) { return this.request('POST', '/departments/equipment/' + id + '/temp-custody', data); },
+    moveDeptEquipment(id, data) { return this.request('POST', '/departments/equipment/' + id + '/move-custody', data); },
 
     // Department transfer (move row to another dept and/or swap items↔equipment list type)
     transferDeptItem(itemId, data)      { return this.request('POST', '/departments/items/' + itemId + '/transfer-record', data); },

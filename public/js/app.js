@@ -94,7 +94,7 @@ const i18n = {
         underTempCustody:'Under Temporary Custody',
         tempCustodyTab:'Temporary Custody', noTempCustody:'No items currently under temporary custody.',
         manageCustody:'Manage', printTempCustodyTitle:'Print temporary custody',
-        moveToTempCustody:'Move to Temporary Custody', returnToDestination:'Return To...',
+        returnToDestination:'Return To...',
         print:'Print', printIncoming:'Print Incoming', printCurrent:'Print Current',
         printHistory:'Print History',
         report:'Report', generatedOn:'Generated on', page:'Page', of:'of',
@@ -273,7 +273,7 @@ const i18n = {
         underTempCustody:'تحت عهدة مؤقتة',
         tempCustodyTab:'العهدة المؤقتة', noTempCustody:'لا توجد عناصر تحت عهدة مؤقتة حالياً.',
         manageCustody:'إدارة', printTempCustodyTitle:'طباعة العهدة المؤقتة',
-        moveToTempCustody:'نقل إلى العهدة المؤقتة', returnToDestination:'إرجاع إلى...',
+        returnToDestination:'إرجاع إلى...',
         print:'طباعة', printIncoming:'طباعة الواردة', printCurrent:'طباعة الحالية',
         printHistory:'طباعة السجل',
         report:'تقرير', generatedOn:'تم التوليد في', page:'صفحة', of:'من',
@@ -4154,7 +4154,7 @@ async function renderEmpItems() {
                     '<div class="custody-v2-tools">' +
                         '<label class="custody-v2-tool-btn" title="Upload"><i class="fas fa-camera"></i><input type="file" accept="image/*" style="display:none" onchange="uploadEmpItemImg(' + item.id + ',\'' + (item.entity_type || 'item') + '\',this.files[0])"></label>' +
                         '<button class="custody-v2-tool-btn" title="' + (t('editCustodyItem') || 'Edit') + '" onclick="openEmpItemEditModal(' + item.id + ',\'' + (item.entity_type || 'item') + '\')"><i class="fas fa-pen"></i></button>' +
-                        '<button class="custody-v2-tool-btn" title="' + (t('moveToTempCustody') || 'Move to Temporary Custody') + '" onclick="openMoveToTempCustodyModal(' + item.id + ',\'' + (item.entity_type || 'item') + '\',\'' + escapeHtml(item.name || '').replace(/'/g, "\\'") + '\',' + Number(item.qty || 1) + ')"><i class="fas fa-exchange-alt"></i></button>' +
+                        '<button class="custody-v2-tool-btn" title="' + t('move') + '" onclick="openMoveToTempCustodyModal(' + item.id + ',\'' + (item.entity_type || 'item') + '\',\'' + escapeHtml(item.name || '').replace(/'/g, "\\'") + '\',' + Number(item.qty || 1) + ')"><i class="fas fa-exchange-alt"></i></button>' +
                         '<button class="custody-v2-tool-btn custody-v2-tool-del" onclick="deleteEmpItem(' + item.id + ',\'' + (item.entity_type || 'item') + '\')"><i class="fas fa-trash-alt"></i></button>' +
                     '</div>' +
                 '</div>' +
@@ -4268,20 +4268,26 @@ async function saveEmpItemEdit() {
     } catch (e) { showToast(e.message, 'error'); }
 }
 
-// ---- Move a Custody Item (real department holding) into Temporary Custody
-// (a tagged locker/warehouse item) — the reverse of the normal custody
-// transfer. Needs a real destination locker or warehouse zone/area, since
-// Temporary Custody entries always point at an actual items/warehouse_items row.
-var _moveTempCustody = { id: null, kind: 'item', dest: 'locker' };
+// ---- Move a Custody Item to another department, another employee, a
+// locker, or a warehouse zone/area — a real, qty-aware move. Locker/
+// warehouse destinations additionally tag the moved stock to the item's
+// current employee as an active Temporary Custody entry, since those need a
+// real anchor row (department/employee destinations just relocate the
+// department_items/equipment row directly).
+var _moveTempCustody = { id: null, kind: 'item', dest: 'department' };
 
 function setMoveTempCustodyDest(dest) {
     _moveTempCustody.dest = dest;
     document.querySelectorAll('#moveToTempCustodyModal .transfer-mode-btn').forEach(function(b) {
         b.classList.toggle('active', b.dataset.mode === dest);
     });
+    var deptF = document.getElementById('moveTempCustodyDeptField');
+    var empF = document.getElementById('moveTempCustodyEmpField');
     var lockerF = document.getElementById('moveTempCustodyLockerField');
     var zoneF = document.getElementById('moveTempCustodyZoneField');
     var areaF = document.getElementById('moveTempCustodyAreaField');
+    if (deptF) deptF.style.display = dest === 'department' ? '' : 'none';
+    if (empF) empF.style.display = dest === 'employee' ? '' : 'none';
     if (lockerF) lockerF.style.display = dest === 'locker' ? '' : 'none';
     if (zoneF) zoneF.style.display = dest === 'warehouse' ? '' : 'none';
     if (areaF) areaF.style.display = dest === 'warehouse' ? '' : 'none';
@@ -4309,17 +4315,25 @@ async function openMoveToTempCustodyModal(id, kind, name, qty) {
     qtyInput.value = maxQty;
     var qtyHint = document.getElementById('moveTempCustodyQtyHint');
     if (qtyHint) qtyHint.textContent = '(' + (t('stock') || 'available') + ': ' + maxQty + ')';
-    setMoveTempCustodyDest('locker');
+    var condSel = document.getElementById('moveTempCustodyCondition');
+    if (condSel) condSel.value = 'new';
+    setMoveTempCustodyDest('department');
+    var deptSel = document.getElementById('moveTempCustodyDeptSel');
+    var empSel = document.getElementById('moveTempCustodyEmpSel');
     var lockerSel = document.getElementById('moveTempCustodyLockerSel');
     var zoneSel = document.getElementById('moveTempCustodyZoneSel');
+    deptSel.innerHTML = '<option value="">' + t('selectDepartment') + '</option>';
+    empSel.innerHTML = '<option value="">' + t('selectEmployee') + '</option>';
     lockerSel.innerHTML = '<option value="">' + t('selectTargetLocker') + '</option>';
     zoneSel.innerHTML = '<option value="">' + t('selectTargetZone') + '</option>';
     document.getElementById('moveTempCustodyAreaSel').innerHTML = '<option value="">' + t('noArea') + '</option>';
     document.getElementById('moveToTempCustodyModal').classList.add('active');
     try {
-        var res = await Promise.all([API.getLockers(), API.getZones()]);
-        res[0].forEach(function(l) { lockerSel.innerHTML += '<option value="' + l.id + '">' + escapeHtml(l.name || (t('locker') + ' ' + l.id)) + '</option>'; });
-        res[1].forEach(function(z) { zoneSel.innerHTML += '<option value="' + z.id + '">' + escapeHtml(z.name) + '</option>'; });
+        var res = await Promise.all([API.getDepartments(), API.getEmployees(), API.getLockers(), API.getZones()]);
+        res[0].forEach(function(d) { deptSel.innerHTML += '<option value="' + d.id + '">' + escapeHtml(d.name) + '</option>'; });
+        res[1].forEach(function(e) { empSel.innerHTML += '<option value="' + e.id + '">' + escapeHtml(e.name) + (e.job_title ? ' — ' + escapeHtml(e.job_title) : '') + '</option>'; });
+        res[2].forEach(function(l) { lockerSel.innerHTML += '<option value="' + l.id + '">' + escapeHtml(l.name || (t('locker') + ' ' + l.id)) + '</option>'; });
+        res[3].forEach(function(z) { zoneSel.innerHTML += '<option value="' + z.id + '">' + escapeHtml(z.name) + '</option>'; });
     } catch (e) { /* ignore */ }
 }
 
@@ -4329,8 +4343,17 @@ async function confirmMoveToTempCustody() {
     var maxQty = parseInt(qtyInput.max) || 1;
     var reqQty = parseInt(qtyInput.value);
     if (isNaN(reqQty) || reqQty < 1) { showToast(t('qty'), 'error'); return; }
-    var payload = { qty: Math.min(maxQty, reqQty), destination_type: _moveTempCustody.dest };
-    if (_moveTempCustody.dest === 'locker') {
+    var condition = document.getElementById('moveTempCustodyCondition').value;
+    var payload = { qty: Math.min(maxQty, reqQty), destination_type: _moveTempCustody.dest, condition: condition };
+    if (_moveTempCustody.dest === 'department') {
+        var deptId = document.getElementById('moveTempCustodyDeptSel').value;
+        if (!deptId) { showToast(t('selectDepartment'), 'error'); return; }
+        payload.department_id = parseInt(deptId);
+    } else if (_moveTempCustody.dest === 'employee') {
+        var empId = document.getElementById('moveTempCustodyEmpSel').value;
+        if (!empId) { showToast(t('selectEmployee'), 'error'); return; }
+        payload.employee_id = parseInt(empId);
+    } else if (_moveTempCustody.dest === 'locker') {
         var lockerId = document.getElementById('moveTempCustodyLockerSel').value;
         if (!lockerId) { showToast(t('selectTargetLocker'), 'error'); return; }
         payload.locker_id = parseInt(lockerId);
@@ -4342,12 +4365,12 @@ async function confirmMoveToTempCustody() {
         if (areaId) payload.area_id = parseInt(areaId);
     }
     try {
-        if (_moveTempCustody.kind === 'equipment') await API.moveDeptEquipmentToTempCustody(_moveTempCustody.id, payload);
-        else await API.moveDeptItemToTempCustody(_moveTempCustody.id, payload);
+        if (_moveTempCustody.kind === 'equipment') await API.moveDeptEquipment(_moveTempCustody.id, payload);
+        else await API.moveDeptItem(_moveTempCustody.id, payload);
         closeModal('moveToTempCustodyModal');
         currentEmpData = await API.getEmployee(currentEmpId);
         await renderEmpItems();
-        showToast(t('custodyTransferred') || 'Moved to Temporary Custody');
+        showToast(t('custodyTransferred') || 'Moved');
     } catch (e) { showToast(e.message, 'error'); }
 }
 

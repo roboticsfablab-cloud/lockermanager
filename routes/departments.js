@@ -310,74 +310,129 @@ module.exports = function (db) {
         res.json({ success: true });
     });
 
-    // Convert a Custody Item into a Temporary Custody entry — creates/merges a
-    // real locker or warehouse row at the chosen destination, tags it to the
-    // item's employee via an active covenant_history row, and removes the
-    // moved quantity from department_items (deletes the row if fully moved).
-    router.post('/items/:id/temp-custody', async (req, res) => {
+    // Move a Custody Item anywhere — another department, another employee, a
+    // locker, or a warehouse zone/area — as a real, qty-aware move (splits
+    // off the requested quantity, merging into a matching destination row if
+    // one exists). Locker/warehouse destinations need a real anchor row there
+    // (Temporary Custody always points at one), so those also get tagged to
+    // the employee via an active covenant_history row; department/employee
+    // destinations just relocate the department_items row directly.
+    router.post('/items/:id/move-custody', async (req, res) => {
         try {
-            const { destination_type, locker_id, zone_id, area_id, qty } = req.body;
+            const { destination_type, locker_id, zone_id, area_id, department_id, employee_id, qty, condition } = req.body;
             const src = await db.execute({ sql: 'SELECT * FROM department_items WHERE id = ?', args: [req.params.id] });
             if (!src.rows.length) return res.status(404).json({ error: 'Item not found' });
             const it = src.rows[0];
-            if (!it.employee_id) return res.status(400).json({ error: 'Item must be held by an employee to move to temporary custody' });
 
             const available = Number(it.qty) || 0;
             if (available < 1) return res.status(400).json({ error: 'Item has no available stock to move' });
             const requested = parseInt(qty);
             const moveQty = Math.min(available, Math.max(1, isNaN(requested) ? available : requested));
+            const moveCondition = condition || it.condition || 'new';
 
-            let newItemId, entityType;
-            if (destination_type === 'locker') {
-                if (!locker_id) return res.status(400).json({ error: 'Locker required' });
-                const locker = await db.execute({ sql: 'SELECT id FROM lockers WHERE id = ?', args: [locker_id] });
-                if (!locker.rows.length) return res.status(404).json({ error: 'Locker not found' });
-                const existing = await db.execute({ sql: 'SELECT id FROM items WHERE locker_id = ? AND name = ?', args: [locker_id, it.name] });
+            let result;
+            if (destination_type === 'locker' || destination_type === 'warehouse') {
+                if (!it.employee_id) return res.status(400).json({ error: 'Item must be held by an employee to move to a locker or warehouse' });
+                let newItemId, entityType;
+                if (destination_type === 'locker') {
+                    if (!locker_id) return res.status(400).json({ error: 'Locker required' });
+                    const locker = await db.execute({ sql: 'SELECT id FROM lockers WHERE id = ?', args: [locker_id] });
+                    if (!locker.rows.length) return res.status(404).json({ error: 'Locker not found' });
+                    const existing = await db.execute({ sql: 'SELECT id FROM items WHERE locker_id = ? AND name = ?', args: [locker_id, it.name] });
+                    if (existing.rows.length) {
+                        newItemId = Number(existing.rows[0].id);
+                        await db.execute({ sql: 'UPDATE items SET qty = qty + ? WHERE id = ?', args: [moveQty, newItemId] });
+                    } else {
+                        const ins = await db.execute({
+                            sql: 'INSERT INTO items (locker_id, name, qty, description, image) VALUES (?, ?, ?, ?, ?)',
+                            args: [locker_id, it.name, moveQty, it.description || '', it.image || '']
+                        });
+                        newItemId = Number(ins.lastInsertRowid);
+                    }
+                    entityType = 'locker_item';
+                } else {
+                    if (!zone_id) return res.status(400).json({ error: 'Warehouse zone required' });
+                    const zone = await db.execute({ sql: 'SELECT id FROM warehouse_zones WHERE id = ?', args: [zone_id] });
+                    if (!zone.rows.length) return res.status(404).json({ error: 'Zone not found' });
+                    const existing = area_id
+                        ? await db.execute({ sql: 'SELECT id FROM warehouse_items WHERE zone_id = ? AND area_id = ? AND name = ?', args: [zone_id, area_id, it.name] })
+                        : await db.execute({ sql: 'SELECT id FROM warehouse_items WHERE zone_id = ? AND area_id IS NULL AND name = ?', args: [zone_id, it.name] });
+                    if (existing.rows.length) {
+                        newItemId = Number(existing.rows[0].id);
+                        await db.execute({ sql: 'UPDATE warehouse_items SET qty = qty + ? WHERE id = ?', args: [moveQty, newItemId] });
+                    } else {
+                        const ins = await db.execute({
+                            sql: 'INSERT INTO warehouse_items (zone_id, area_id, name, qty, description, image, condition) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                            args: [zone_id, area_id || null, it.name, moveQty, it.description || '', it.image || '', moveCondition]
+                        });
+                        newItemId = Number(ins.lastInsertRowid);
+                    }
+                    entityType = 'warehouse_item';
+                }
+
+                const today = new Date().toISOString().split('T')[0];
+                await db.execute({
+                    sql: `INSERT INTO covenant_history (entity_type, item_id, to_employee_id, transfer_date, start_date, end_date, status, qty, condition, notes)
+                          VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`,
+                    args: [entityType, newItemId, it.employee_id, today, it.receipt_date || today, it.end_date || '', moveQty, moveCondition, 'Moved from Custody Items']
+                });
+                result = { entity_type: entityType, item_id: newItemId };
+            } else if (destination_type === 'department') {
+                if (!department_id) return res.status(400).json({ error: 'Department required' });
+                const dep = await db.execute({ sql: 'SELECT id FROM departments WHERE id = ?', args: [department_id] });
+                if (!dep.rows.length) return res.status(404).json({ error: 'Department not found' });
+                const existing = await db.execute({ sql: 'SELECT id FROM department_items WHERE department_id = ? AND employee_id IS NULL AND name = ?', args: [department_id, it.name] });
+                let newId;
                 if (existing.rows.length) {
-                    newItemId = Number(existing.rows[0].id);
-                    await db.execute({ sql: 'UPDATE items SET qty = qty + ? WHERE id = ?', args: [moveQty, newItemId] });
+                    newId = Number(existing.rows[0].id);
+                    await db.execute({ sql: 'UPDATE department_items SET qty = qty + ? WHERE id = ?', args: [moveQty, newId] });
                 } else {
                     const ins = await db.execute({
-                        sql: 'INSERT INTO items (locker_id, name, qty, description, image) VALUES (?, ?, ?, ?, ?)',
-                        args: [locker_id, it.name, moveQty, it.description || '', it.image || '']
+                        sql: `INSERT INTO department_items (department_id, employee_id, name, description, qty, image, receipt_date, purpose, condition)
+                              VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
+                        args: [department_id, it.name, it.description || '', moveQty, it.image || '', it.receipt_date || '', it.purpose || '', moveCondition]
                     });
-                    newItemId = Number(ins.lastInsertRowid);
+                    newId = Number(ins.lastInsertRowid);
                 }
-                entityType = 'locker_item';
-            } else if (destination_type === 'warehouse') {
-                if (!zone_id) return res.status(400).json({ error: 'Warehouse zone required' });
-                const zone = await db.execute({ sql: 'SELECT id FROM warehouse_zones WHERE id = ?', args: [zone_id] });
-                if (!zone.rows.length) return res.status(404).json({ error: 'Zone not found' });
-                const existing = area_id
-                    ? await db.execute({ sql: 'SELECT id FROM warehouse_items WHERE zone_id = ? AND area_id = ? AND name = ?', args: [zone_id, area_id, it.name] })
-                    : await db.execute({ sql: 'SELECT id FROM warehouse_items WHERE zone_id = ? AND area_id IS NULL AND name = ?', args: [zone_id, it.name] });
+                await db.execute({
+                    sql: `INSERT INTO covenant_history (entity_type, item_id, from_department_id, to_department_id, transfer_date, status, notes)
+                          VALUES ('item', ?, ?, ?, ?, 'transferred', ?)`,
+                    args: [newId, it.department_id, department_id, new Date().toISOString().split('T')[0], 'Moved from Custody Items · qty ' + moveQty]
+                });
+                result = { entity_type: 'item', item_id: newId };
+            } else if (destination_type === 'employee') {
+                if (!employee_id) return res.status(400).json({ error: 'Employee required' });
+                const emp = await db.execute({ sql: 'SELECT id, department_id FROM employees WHERE id = ?', args: [employee_id] });
+                if (!emp.rows.length) return res.status(404).json({ error: 'Employee not found' });
+                const targetDeptId = emp.rows[0].department_id || null;
+                const existing = await db.execute({ sql: 'SELECT id FROM department_items WHERE employee_id = ? AND name = ?', args: [employee_id, it.name] });
+                let newId;
                 if (existing.rows.length) {
-                    newItemId = Number(existing.rows[0].id);
-                    await db.execute({ sql: 'UPDATE warehouse_items SET qty = qty + ? WHERE id = ?', args: [moveQty, newItemId] });
+                    newId = Number(existing.rows[0].id);
+                    await db.execute({ sql: 'UPDATE department_items SET qty = qty + ? WHERE id = ?', args: [moveQty, newId] });
                 } else {
                     const ins = await db.execute({
-                        sql: 'INSERT INTO warehouse_items (zone_id, area_id, name, qty, description, image, condition) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                        args: [zone_id, area_id || null, it.name, moveQty, it.description || '', it.image || '', it.condition || 'new']
+                        sql: `INSERT INTO department_items (department_id, employee_id, name, description, qty, image, receipt_date, purpose, condition)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        args: [targetDeptId, employee_id, it.name, it.description || '', moveQty, it.image || '', it.receipt_date || '', it.purpose || '', moveCondition]
                     });
-                    newItemId = Number(ins.lastInsertRowid);
+                    newId = Number(ins.lastInsertRowid);
                 }
-                entityType = 'warehouse_item';
+                await db.execute({
+                    sql: `INSERT INTO covenant_history (entity_type, item_id, from_employee_id, to_employee_id, transfer_date, status, notes)
+                          VALUES ('item', ?, ?, ?, ?, 'transferred', ?)`,
+                    args: [newId, it.employee_id, employee_id, new Date().toISOString().split('T')[0], 'Moved from Custody Items · qty ' + moveQty]
+                });
+                result = { entity_type: 'item', item_id: newId };
             } else {
-                return res.status(400).json({ error: 'destination_type must be locker or warehouse' });
+                return res.status(400).json({ error: 'destination_type must be department, employee, locker, or warehouse' });
             }
-
-            const today = new Date().toISOString().split('T')[0];
-            await db.execute({
-                sql: `INSERT INTO covenant_history (entity_type, item_id, to_employee_id, transfer_date, start_date, end_date, status, qty, condition, notes)
-                      VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`,
-                args: [entityType, newItemId, it.employee_id, today, it.receipt_date || today, it.end_date || '', moveQty, it.condition || '', 'Moved from Custody Items']
-            });
 
             const remaining = available - moveQty;
             if (remaining <= 0) await db.execute({ sql: 'DELETE FROM department_items WHERE id = ?', args: [it.id] });
             else await db.execute({ sql: 'UPDATE department_items SET qty = ? WHERE id = ?', args: [remaining, it.id] });
 
-            res.json({ success: true, entity_type: entityType, item_id: newItemId });
+            res.json({ success: true, ...result });
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 
@@ -485,74 +540,126 @@ module.exports = function (db) {
         res.json({ success: true });
     });
 
-    // Convert a Custody Equipment row into a Temporary Custody entry — same
-    // shape as /items/:id/temp-custody above. Equipment has no locker/warehouse
-    // equivalent of its own, so it lands as a plain items/warehouse_items row
-    // at the destination like any other item.
-    router.post('/equipment/:id/temp-custody', async (req, res) => {
+    // Move a Custody Equipment row anywhere — same shape as /items/:id/move-custody
+    // above. Equipment has no locker/warehouse equivalent of its own, so it
+    // lands as a plain items/warehouse_items row there like any other item;
+    // department/employee destinations stay in department_equipment.
+    router.post('/equipment/:id/move-custody', async (req, res) => {
         try {
-            const { destination_type, locker_id, zone_id, area_id, qty } = req.body;
+            const { destination_type, locker_id, zone_id, area_id, department_id, employee_id, qty, condition } = req.body;
             const src = await db.execute({ sql: 'SELECT * FROM department_equipment WHERE id = ?', args: [req.params.id] });
             if (!src.rows.length) return res.status(404).json({ error: 'Equipment not found' });
             const it = src.rows[0];
-            if (!it.employee_id) return res.status(400).json({ error: 'Equipment must be held by an employee to move to temporary custody' });
 
             const available = Number(it.qty) || 0;
             if (available < 1) return res.status(400).json({ error: 'Equipment has no available stock to move' });
             const requested = parseInt(qty);
             const moveQty = Math.min(available, Math.max(1, isNaN(requested) ? available : requested));
+            const moveCondition = condition || it.condition || 'new';
 
-            let newItemId, entityType;
-            if (destination_type === 'locker') {
-                if (!locker_id) return res.status(400).json({ error: 'Locker required' });
-                const locker = await db.execute({ sql: 'SELECT id FROM lockers WHERE id = ?', args: [locker_id] });
-                if (!locker.rows.length) return res.status(404).json({ error: 'Locker not found' });
-                const existing = await db.execute({ sql: 'SELECT id FROM items WHERE locker_id = ? AND name = ?', args: [locker_id, it.name] });
+            let result;
+            if (destination_type === 'locker' || destination_type === 'warehouse') {
+                if (!it.employee_id) return res.status(400).json({ error: 'Equipment must be held by an employee to move to a locker or warehouse' });
+                let newItemId, entityType;
+                if (destination_type === 'locker') {
+                    if (!locker_id) return res.status(400).json({ error: 'Locker required' });
+                    const locker = await db.execute({ sql: 'SELECT id FROM lockers WHERE id = ?', args: [locker_id] });
+                    if (!locker.rows.length) return res.status(404).json({ error: 'Locker not found' });
+                    const existing = await db.execute({ sql: 'SELECT id FROM items WHERE locker_id = ? AND name = ?', args: [locker_id, it.name] });
+                    if (existing.rows.length) {
+                        newItemId = Number(existing.rows[0].id);
+                        await db.execute({ sql: 'UPDATE items SET qty = qty + ? WHERE id = ?', args: [moveQty, newItemId] });
+                    } else {
+                        const ins = await db.execute({
+                            sql: 'INSERT INTO items (locker_id, name, qty, description, image) VALUES (?, ?, ?, ?, ?)',
+                            args: [locker_id, it.name, moveQty, it.description || '', it.image || '']
+                        });
+                        newItemId = Number(ins.lastInsertRowid);
+                    }
+                    entityType = 'locker_item';
+                } else {
+                    if (!zone_id) return res.status(400).json({ error: 'Warehouse zone required' });
+                    const zone = await db.execute({ sql: 'SELECT id FROM warehouse_zones WHERE id = ?', args: [zone_id] });
+                    if (!zone.rows.length) return res.status(404).json({ error: 'Zone not found' });
+                    const existing = area_id
+                        ? await db.execute({ sql: 'SELECT id FROM warehouse_items WHERE zone_id = ? AND area_id = ? AND name = ?', args: [zone_id, area_id, it.name] })
+                        : await db.execute({ sql: 'SELECT id FROM warehouse_items WHERE zone_id = ? AND area_id IS NULL AND name = ?', args: [zone_id, it.name] });
+                    if (existing.rows.length) {
+                        newItemId = Number(existing.rows[0].id);
+                        await db.execute({ sql: 'UPDATE warehouse_items SET qty = qty + ? WHERE id = ?', args: [moveQty, newItemId] });
+                    } else {
+                        const ins = await db.execute({
+                            sql: 'INSERT INTO warehouse_items (zone_id, area_id, name, qty, description, image, condition) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                            args: [zone_id, area_id || null, it.name, moveQty, it.description || '', it.image || '', moveCondition]
+                        });
+                        newItemId = Number(ins.lastInsertRowid);
+                    }
+                    entityType = 'warehouse_item';
+                }
+
+                const today = new Date().toISOString().split('T')[0];
+                await db.execute({
+                    sql: `INSERT INTO covenant_history (entity_type, item_id, to_employee_id, transfer_date, start_date, end_date, status, qty, condition, notes)
+                          VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`,
+                    args: [entityType, newItemId, it.employee_id, today, it.receipt_date || today, it.end_date || '', moveQty, moveCondition, 'Moved from Custody Items']
+                });
+                result = { entity_type: entityType, item_id: newItemId };
+            } else if (destination_type === 'department') {
+                if (!department_id) return res.status(400).json({ error: 'Department required' });
+                const dep = await db.execute({ sql: 'SELECT id FROM departments WHERE id = ?', args: [department_id] });
+                if (!dep.rows.length) return res.status(404).json({ error: 'Department not found' });
+                const existing = await db.execute({ sql: 'SELECT id FROM department_equipment WHERE department_id = ? AND employee_id IS NULL AND name = ?', args: [department_id, it.name] });
+                let newId;
                 if (existing.rows.length) {
-                    newItemId = Number(existing.rows[0].id);
-                    await db.execute({ sql: 'UPDATE items SET qty = qty + ? WHERE id = ?', args: [moveQty, newItemId] });
+                    newId = Number(existing.rows[0].id);
+                    await db.execute({ sql: 'UPDATE department_equipment SET qty = qty + ? WHERE id = ?', args: [moveQty, newId] });
                 } else {
                     const ins = await db.execute({
-                        sql: 'INSERT INTO items (locker_id, name, qty, description, image) VALUES (?, ?, ?, ?, ?)',
-                        args: [locker_id, it.name, moveQty, it.description || '', it.image || '']
+                        sql: `INSERT INTO department_equipment (department_id, employee_id, name, description, qty, image, receipt_date, purpose, condition)
+                              VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
+                        args: [department_id, it.name, it.description || '', moveQty, it.image || '', it.receipt_date || '', it.purpose || '', moveCondition]
                     });
-                    newItemId = Number(ins.lastInsertRowid);
+                    newId = Number(ins.lastInsertRowid);
                 }
-                entityType = 'locker_item';
-            } else if (destination_type === 'warehouse') {
-                if (!zone_id) return res.status(400).json({ error: 'Warehouse zone required' });
-                const zone = await db.execute({ sql: 'SELECT id FROM warehouse_zones WHERE id = ?', args: [zone_id] });
-                if (!zone.rows.length) return res.status(404).json({ error: 'Zone not found' });
-                const existing = area_id
-                    ? await db.execute({ sql: 'SELECT id FROM warehouse_items WHERE zone_id = ? AND area_id = ? AND name = ?', args: [zone_id, area_id, it.name] })
-                    : await db.execute({ sql: 'SELECT id FROM warehouse_items WHERE zone_id = ? AND area_id IS NULL AND name = ?', args: [zone_id, it.name] });
+                await db.execute({
+                    sql: `INSERT INTO covenant_history (entity_type, item_id, from_department_id, to_department_id, transfer_date, status, notes)
+                          VALUES ('equipment', ?, ?, ?, ?, 'transferred', ?)`,
+                    args: [newId, it.department_id, department_id, new Date().toISOString().split('T')[0], 'Moved from Custody Items · qty ' + moveQty]
+                });
+                result = { entity_type: 'equipment', item_id: newId };
+            } else if (destination_type === 'employee') {
+                if (!employee_id) return res.status(400).json({ error: 'Employee required' });
+                const emp = await db.execute({ sql: 'SELECT id, department_id FROM employees WHERE id = ?', args: [employee_id] });
+                if (!emp.rows.length) return res.status(404).json({ error: 'Employee not found' });
+                const targetDeptId = emp.rows[0].department_id || null;
+                const existing = await db.execute({ sql: 'SELECT id FROM department_equipment WHERE employee_id = ? AND name = ?', args: [employee_id, it.name] });
+                let newId;
                 if (existing.rows.length) {
-                    newItemId = Number(existing.rows[0].id);
-                    await db.execute({ sql: 'UPDATE warehouse_items SET qty = qty + ? WHERE id = ?', args: [moveQty, newItemId] });
+                    newId = Number(existing.rows[0].id);
+                    await db.execute({ sql: 'UPDATE department_equipment SET qty = qty + ? WHERE id = ?', args: [moveQty, newId] });
                 } else {
                     const ins = await db.execute({
-                        sql: 'INSERT INTO warehouse_items (zone_id, area_id, name, qty, description, image, condition) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                        args: [zone_id, area_id || null, it.name, moveQty, it.description || '', it.image || '', it.condition || 'new']
+                        sql: `INSERT INTO department_equipment (department_id, employee_id, name, description, qty, image, receipt_date, purpose, condition)
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                        args: [targetDeptId, employee_id, it.name, it.description || '', moveQty, it.image || '', it.receipt_date || '', it.purpose || '', moveCondition]
                     });
-                    newItemId = Number(ins.lastInsertRowid);
+                    newId = Number(ins.lastInsertRowid);
                 }
-                entityType = 'warehouse_item';
+                await db.execute({
+                    sql: `INSERT INTO covenant_history (entity_type, item_id, from_employee_id, to_employee_id, transfer_date, status, notes)
+                          VALUES ('equipment', ?, ?, ?, ?, 'transferred', ?)`,
+                    args: [newId, it.employee_id, employee_id, new Date().toISOString().split('T')[0], 'Moved from Custody Items · qty ' + moveQty]
+                });
+                result = { entity_type: 'equipment', item_id: newId };
             } else {
-                return res.status(400).json({ error: 'destination_type must be locker or warehouse' });
+                return res.status(400).json({ error: 'destination_type must be department, employee, locker, or warehouse' });
             }
-
-            const today = new Date().toISOString().split('T')[0];
-            await db.execute({
-                sql: `INSERT INTO covenant_history (entity_type, item_id, to_employee_id, transfer_date, start_date, end_date, status, qty, condition, notes)
-                      VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`,
-                args: [entityType, newItemId, it.employee_id, today, it.receipt_date || today, it.end_date || '', moveQty, it.condition || '', 'Moved from Custody Items']
-            });
 
             const remaining = available - moveQty;
             if (remaining <= 0) await db.execute({ sql: 'DELETE FROM department_equipment WHERE id = ?', args: [it.id] });
             else await db.execute({ sql: 'UPDATE department_equipment SET qty = ? WHERE id = ?', args: [remaining, it.id] });
 
-            res.json({ success: true, entity_type: entityType, item_id: newItemId });
+            res.json({ success: true, ...result });
         } catch (e) { res.status(500).json({ error: e.message }); }
     });
 

@@ -1820,18 +1820,28 @@
         <div class="modal-header">
             <h2>
                 <i class="fas fa-exchange-alt" style="margin-right:8px;color:var(--accent)"></i>
-                <span data-i18n="moveToTempCustody">Move to Temporary Custody</span>
+                <span data-i18n="move">Move</span>
                 <span class="covenant-item-name" id="moveTempCustodyItemName"></span>
             </h2>
             <button class="modal-close" onclick="closeModal('moveToTempCustodyModal')"><i class="fas fa-times"></i></button>
         </div>
         <div class="modal-body">
             <div class="transfer-mode-toggle">
-                <button type="button" class="transfer-mode-btn active" data-mode="locker" onclick="setMoveTempCustodyDest('locker')"><i class="fas fa-box-open"></i> <span data-i18n="locker">Locker</span></button>
+                <button type="button" class="transfer-mode-btn active" data-mode="department" onclick="setMoveTempCustodyDest('department')"><i class="fas fa-building"></i> <span data-i18n="department">Department</span></button>
+                <button type="button" class="transfer-mode-btn" data-mode="employee" onclick="setMoveTempCustodyDest('employee')"><i class="fas fa-user"></i> <span data-i18n="employeeName">Employee</span></button>
+                <button type="button" class="transfer-mode-btn" data-mode="locker" onclick="setMoveTempCustodyDest('locker')"><i class="fas fa-box-open"></i> <span data-i18n="locker">Locker</span></button>
                 <button type="button" class="transfer-mode-btn" data-mode="warehouse" onclick="setMoveTempCustodyDest('warehouse')"><i class="fas fa-warehouse"></i> <span data-i18n="warehouse">Warehouse</span></button>
             </div>
             <div class="transfer-form-grid">
-                <div class="form-field" id="moveTempCustodyLockerField">
+                <div class="form-field" id="moveTempCustodyDeptField">
+                    <label data-i18n="targetDepartment">Target Department</label>
+                    <select id="moveTempCustodyDeptSel"></select>
+                </div>
+                <div class="form-field" id="moveTempCustodyEmpField" style="display:none">
+                    <label data-i18n="employeeName">Employee Name</label>
+                    <select id="moveTempCustodyEmpSel"></select>
+                </div>
+                <div class="form-field" id="moveTempCustodyLockerField" style="display:none">
                     <label data-i18n="targetLocker">Target Cabinet</label>
                     <select id="moveTempCustodyLockerSel"></select>
                 </div>
@@ -1847,9 +1857,19 @@
                     <label data-i18n="qty">Qty</label> <span class="custody-qty-hint" id="moveTempCustodyQtyHint"></span>
                     <input type="number" id="moveTempCustodyQty" min="1" step="1">
                 </div>
+                <div class="form-field">
+                    <label data-i18n="condition">Condition</label>
+                    <select id="moveTempCustodyCondition">
+                        <option value="new" data-i18n="conditionNew">New</option>
+                        <option value="used" data-i18n="conditionUsed">Used</option>
+                        <option value="repairable" data-i18n="conditionRepairable">Repairable</option>
+                        <option value="maintenance" data-i18n="conditionMaintenance">Needs Maintenance</option>
+                        <option value="damaged" data-i18n="conditionDamaged">Damaged</option>
+                    </select>
+                </div>
             </div>
             <button class="btn-add transfer-submit-btn" onclick="confirmMoveToTempCustody()">
-                <i class="fas fa-check"></i> <span data-i18n="moveToTempCustody">Move to Temporary Custody</span>
+                <i class="fas fa-check"></i> <span data-i18n="move">Move</span>
             </button>
         </div>
     </div>
@@ -2036,8 +2056,8 @@
 </div>
 
 <!-- Scripts -->
-<script src="/js/api.js?v=33"></script>
-<script src="/js/app.js?v=33"></script>
+<script src="/js/api.js?v=34"></script>
+<script src="/js/app.js?v=34"></script>
 
 </body>
 </html>
